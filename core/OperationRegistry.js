@@ -10,6 +10,7 @@ import { RasterFillOperation } from '../operations/RasterFillOperation.js';
 import { LaserOperation } from '../operations/LaserOperation.js';
 import { VCarveOperation } from '../operations/VCarveOperation.js';
 import { LayeredStepdownOperation } from '../operations/LayeredStepdownOperation.js';
+import { DragKnifeOperation } from '../operations/DragKnifeOperation.js';
 import { HalftoneOperation } from '../operations/HalftoneOperation.js';
 import { WavyOperation } from '../operations/WavyOperation.js';
 import { HeightmapOperation } from '../operations/HeightmapOperation.js';
@@ -36,13 +37,24 @@ function toToolpathFromCamPaths(camPaths, operationType, config, scale = 1 / 100
   return toolpath;
 }
 
-function toToolpathFromPaths(paths, operationType, config, level = 0) {
-  const toolpath = new Toolpath(operationType, cloneConfig(config));
-  for (const path of paths || []) {
-    toolpath.addPath(path instanceof Path ? path.clone() : new Path(path.points || [], !!path.closed), level);
-  }
-  toolpath.computeBounds();
-  return toolpath;
+function normalizeDepthConfig(config = {}) {
+  return {
+    ...config,
+    zStart: Number.isFinite(config.zStart) ? config.zStart : 0,
+    zEnd: Number.isFinite(config.zEnd)
+      ? config.zEnd
+      : (Number.isFinite(config.zDepth) ? config.zDepth : 0),
+    passDepth: Number.isFinite(config.passDepth)
+      ? config.passDepth
+      : (Number.isFinite(config.zStep) ? config.zStep : 0.5),
+    finishPassDepth: Number.isFinite(config.finishPassDepth) ? config.finishPassDepth : 0,
+    springPasses: Number.isFinite(config.springPasses) ? config.springPasses : 0
+  };
+}
+
+function shouldApplyDepth(config = {}) {
+  const depth = normalizeDepthConfig(config);
+  return Math.abs(depth.zStart - depth.zEnd) > 1e-9;
 }
 
 function normalizeSource(source) {
@@ -75,6 +87,7 @@ export class OperationRegistry {
     this.laserOperation = new LaserOperation();
     this.vCarveOperation = new VCarveOperation();
     this.layeredStepdownOperation = new LayeredStepdownOperation();
+    this.dragKnifeOperation = new DragKnifeOperation();
     this.halftoneOperation = new HalftoneOperation();
     this.wavyOperation = new WavyOperation();
     this.heightmapOperation = new HeightmapOperation();
@@ -88,13 +101,6 @@ export class OperationRegistry {
   _buildOperations() {
     const vectorSource = source => source.geometry || source.paths || [];
     const openVectorSource = source => source.openGeometry || source.openPaths || [];
-    const bitmapToTracePaths = (imageData, config) =>
-      this.potrace.trace(imageData, {
-        threshold: config.threshold,
-        turdSize: config.turdSize,
-        alphaMax: config.alphaMax,
-        optCurve: config.optCurve
-      });
     const buildCrosshatch = (geometry, config, operationType) => {
       const primary = this.rasterFillOperation.generate(geometry, config);
       const secondary = this.rasterFillOperation.generate(geometry, {
@@ -115,6 +121,44 @@ export class OperationRegistry {
       });
       return toToolpathFromCamPaths(primary.concat(secondary), 'laser-crosshatch', config);
     };
+    const buildDepthAwareCamToolpath = (camPaths, config, operationType, metadata = {}) => {
+      const depthConfig = normalizeDepthConfig(config);
+      if (!shouldApplyDepth(depthConfig)) {
+        const toolpath = toToolpathFromCamPaths(camPaths, operationType, config);
+        toolpath.metadata = { ...toolpath.metadata, ...metadata };
+        toolpath.computeBounds();
+        return toolpath;
+      }
+      return this.layeredStepdownOperation.generateFromCamPaths(
+        camPaths,
+        depthConfig,
+        operationType,
+        metadata
+      );
+    };
+    const toCamPathsFromToolpath = toolpath => toolpath.paths.map(path => ({
+      path: path.points.map(point => ({
+        X: Math.round(point.x * this.vectorOperation.clipper.mmToClipperScale),
+        Y: Math.round(point.y * this.vectorOperation.clipper.mmToClipperScale),
+        Z: 0
+      })),
+      safeToClose: !!path.closed
+    }));
+    const buildDepthAwarePathToolpath = (toolpath, config, operationType, metadata = {}) => {
+      const depthConfig = normalizeDepthConfig(config);
+      toolpath.operationType = operationType;
+      if (!shouldApplyDepth(depthConfig)) {
+        toolpath.metadata = { ...toolpath.metadata, ...metadata };
+        toolpath.computeBounds();
+        return toolpath;
+      }
+      return this.layeredStepdownOperation.generateFromCamPaths(
+        toCamPathsFromToolpath(toolpath),
+        depthConfig,
+        operationType,
+        { ...metadata, ...(toolpath.metadata || {}) }
+      );
+    };
     const vectorOperations = [
       {
         id: 'vector-cut',
@@ -122,10 +166,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'vector',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.vectorOperation.generate(vectorSource(source), { ...config, mode: 'cut' }, openVectorSource(source)),
+            config,
             'vector-cut',
-            config
+            { inputType: 'vector', mode: 'cut' }
           )
       },
       {
@@ -134,10 +179,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'vector',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.vectorOperation.generate(vectorSource(source), { ...config, mode: 'inside' }, openVectorSource(source)),
+            config,
             'vector-inside',
-            config
+            { inputType: 'vector', mode: 'inside' }
           )
       },
       {
@@ -146,10 +192,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'vector',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.vectorOperation.generate(vectorSource(source), { ...config, mode: 'outside' }, openVectorSource(source)),
+            config,
             'vector-outside',
-            config
+            { inputType: 'vector', mode: 'outside' }
           )
       },
       {
@@ -158,10 +205,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'pocket',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.pocketOperation.generate(vectorSource(source), { ...config, strategy: 'concentric' }),
+            config,
             'vector-pocket',
-            config
+            { inputType: 'vector', mode: 'pocket', strategy: 'concentric' }
           )
       },
       {
@@ -170,10 +218,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'pocket',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.pocketOperation.generate(vectorSource(source), { ...config, strategy: 'raster' }),
+            config,
             'vector-pocket-raster',
-            config
+            { inputType: 'vector', mode: 'pocket', strategy: 'raster' }
           )
       },
       {
@@ -182,10 +231,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'rasterFill',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.rasterFillOperation.generate(vectorSource(source), config),
+            config,
             'vector-raster-fill',
-            config
+            { inputType: 'vector', strategy: 'raster-fill' }
           )
       },
       {
@@ -194,7 +244,12 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'rasterFill',
         generate: ({ source, config }) =>
-          buildCrosshatch(vectorSource(source), config, 'vector-crosshatch')
+          buildDepthAwareCamToolpath(
+            toCamPathsFromToolpath(buildCrosshatch(vectorSource(source), config, 'vector-crosshatch')),
+            config,
+            'vector-crosshatch',
+            { inputType: 'vector', strategy: 'crosshatch' }
+          )
       },
       {
         id: 'vector-concentric',
@@ -202,22 +257,11 @@ export class OperationRegistry {
         sourceTypes: ['vector'],
         configType: 'pocket',
         generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
+          buildDepthAwareCamToolpath(
             this.pocketOperation.generate(vectorSource(source), { ...config, mode: 'inside' }),
-            'vector-concentric',
-            config
-          )
-      },
-      {
-        id: 'vector-stepdown',
-        label: 'Vector Stepdown',
-        sourceTypes: ['vector'],
-        configType: 'stepdown',
-        generate: ({ source, config }) =>
-          this.layeredStepdownOperation.generate(
-            vectorSource(source),
             config,
-            openVectorSource(source)
+            'vector-concentric',
+            { inputType: 'vector', mode: 'inside', strategy: 'concentric' }
           )
       },
       {
@@ -230,6 +274,23 @@ export class OperationRegistry {
             this.vCarveOperation.generate(vectorSource(source), config),
             'vector-vcarve',
             config
+          )
+      },
+      {
+        id: 'drag-knife',
+        label: 'Drag Knife',
+        sourceTypes: ['vector'],
+        configType: 'dragKnife',
+        generate: ({ source, config }) =>
+          buildDepthAwarePathToolpath(
+            this.dragKnifeOperation.generate(vectorSource(source), config),
+            {
+              ...config,
+              zStart: Number.isFinite(config.zStart) ? config.zStart : (Number.isFinite(config.z) ? config.z : 0),
+              zEnd: Number.isFinite(config.zEnd) ? config.zEnd : (Number.isFinite(config.z) ? config.z : 0)
+            },
+            'drag-knife',
+            { inputType: 'vector', strategy: 'drag-knife' }
           )
       }
     ];
@@ -340,14 +401,6 @@ export class OperationRegistry {
         }
       },
       {
-        id: 'bitmap-trace',
-        label: 'Bitmap Trace',
-        sourceTypes: ['bitmap'],
-        configType: 'bitmapTrace',
-        generate: ({ source, config }) =>
-          toToolpathFromPaths(bitmapToTracePaths(source.imageData, config), 'bitmap-trace', config)
-      },
-      {
         id: 'bitmap-halftone',
         label: 'Bitmap Halftone',
         sourceTypes: ['bitmap'],
@@ -367,106 +420,6 @@ export class OperationRegistry {
         sourceTypes: ['bitmap'],
         configType: 'heightmap',
         generate: ({ source, config }) => this.heightmapOperation.generate(source.imageData, config)
-      },
-      {
-        id: 'bitmap-trace-cut',
-        label: 'Bitmap Trace Cut',
-        sourceTypes: ['bitmap'],
-        configType: 'vector',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.vectorOperation.generate(bitmapToTracePaths(source.imageData, config), { ...config, mode: 'cut' }, []),
-            'bitmap-trace-cut',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-inside',
-        label: 'Bitmap Trace Inside',
-        sourceTypes: ['bitmap'],
-        configType: 'vector',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.vectorOperation.generate(bitmapToTracePaths(source.imageData, config), { ...config, mode: 'inside' }, []),
-            'bitmap-trace-inside',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-outside',
-        label: 'Bitmap Trace Outside',
-        sourceTypes: ['bitmap'],
-        configType: 'vector',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.vectorOperation.generate(bitmapToTracePaths(source.imageData, config), { ...config, mode: 'outside' }, []),
-            'bitmap-trace-outside',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-pocket',
-        label: 'Bitmap Trace Pocket',
-        sourceTypes: ['bitmap'],
-        configType: 'pocket',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.pocketOperation.generate(bitmapToTracePaths(source.imageData, config), { ...config, strategy: 'concentric' }),
-            'bitmap-trace-pocket',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-pocket-raster',
-        label: 'Bitmap Trace Raster Pocket',
-        sourceTypes: ['bitmap'],
-        configType: 'pocket',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.pocketOperation.generate(bitmapToTracePaths(source.imageData, config), { ...config, strategy: 'raster' }),
-            'bitmap-trace-pocket-raster',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-raster-fill',
-        label: 'Bitmap Trace Raster Fill',
-        sourceTypes: ['bitmap'],
-        configType: 'rasterFill',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.rasterFillOperation.generate(bitmapToTracePaths(source.imageData, config), config),
-            'bitmap-trace-raster-fill',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-crosshatch',
-        label: 'Bitmap Trace Crosshatch',
-        sourceTypes: ['bitmap'],
-        configType: 'rasterFill',
-        generate: ({ source, config }) =>
-          buildCrosshatch(bitmapToTracePaths(source.imageData, config), config, 'bitmap-trace-crosshatch')
-      },
-      {
-        id: 'bitmap-trace-vcarve',
-        label: 'Bitmap Trace V-Carve',
-        sourceTypes: ['bitmap'],
-        configType: 'vcarve',
-        generate: ({ source, config }) =>
-          toToolpathFromCamPaths(
-            this.vCarveOperation.generate(bitmapToTracePaths(source.imageData, config), config),
-            'bitmap-trace-vcarve',
-            config
-          )
-      },
-      {
-        id: 'bitmap-trace-stepdown',
-        label: 'Bitmap Trace Stepdown',
-        sourceTypes: ['bitmap'],
-        configType: 'stepdown',
-        generate: ({ source, config }) =>
-          this.layeredStepdownOperation.generate(bitmapToTracePaths(source.imageData, config), config, [])
       },
     ];
     const meshOperations = [
@@ -526,6 +479,29 @@ export class OperationRegistry {
       };
     }
     return source;
+  }
+
+  traceBitmapToVectorSource(input, config = {}) {
+    const source = this.describeSource(input);
+    if (source.type !== 'bitmap') {
+      throw new Error(`Bitmap tracing requires a bitmap source, received ${source.type}`);
+    }
+    const traceConfig = {
+      ...OperationConfig.getDefaults('bitmapTrace'),
+      ...cloneConfig(config)
+    };
+    const paths = this.potrace.trace(source.imageData, {
+      threshold: traceConfig.threshold,
+      turdSize: traceConfig.turdSize,
+      alphaMax: traceConfig.alphaMax,
+      optCurve: traceConfig.optCurve
+    });
+    return {
+      type: 'vector',
+      paths: paths.map(path => path.clone ? path.clone() : new Path(path.points || [], !!path.closed)),
+      sourceType: 'bitmap',
+      traceConfig
+    };
   }
 
   listSourceTypes() {

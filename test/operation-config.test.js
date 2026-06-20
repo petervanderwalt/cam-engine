@@ -17,8 +17,11 @@ test('OperationConfig: getDefaults for vector', () => {
   assert.equal(def.offsetType, 'none');
   assert.equal(def.offsetDistance, 0);
   assert.equal(def.toolDiameter, 3.175);
-  assert.equal(def.zDepth, -1);
+  assert.equal(def.zDepth, 0);
   assert.equal(def.zStep, 0.5);
+  assert.equal(def.zEnd, 0);
+  assert.equal(def.passDepth, 0.5);
+  assert.deepEqual(def.tabs, []);
 });
 
 test('OperationConfig: getDefaults for pocket', () => {
@@ -26,6 +29,7 @@ test('OperationConfig: getDefaults for pocket', () => {
   assert.equal(def.strategy, 'concentric');
   assert.equal(def.stepover, 0.4);
   assert.equal(def.toolDiameter, 3.175);
+  assert.equal(def.zEnd, 0);
 });
 
 test('OperationConfig: getDefaults for vcarve', () => {
@@ -85,7 +89,7 @@ test('OperationConfig: getTypes list includes all expected', () => {
   const expected = [
     'vector', 'pocket', 'rasterFill', 'vcarve',
     'bitmapTrace', 'bitmapRaster', 'halftone', 'wavy', 'heightmap',
-    'model3d', 'meshRoughing', 'meshFinishing', 'meshProfile',
+    'model3d', 'meshRoughing', 'meshFinishing', 'meshProfile', 'dragKnife',
     'laser', 'texture', 'drill', 'stepdown'
   ];
   for (const e of expected) {
@@ -113,4 +117,11 @@ test('OperationConfig: defaults for mesh profile', () => {
   assert.equal(def.mode, 'outside');
   assert.equal(def.passDepth, 0.5);
   assert.deepEqual(def.tabs, []);
+});
+
+test('OperationConfig: defaults for drag knife', () => {
+  const def = OperationConfig.getDefaults('dragKnife');
+  assert.equal(def.bladeOffset, 0.25);
+  assert.equal(def.swivelSegments, 12);
+  assert.equal(def.z, 0);
 });

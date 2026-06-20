@@ -8,6 +8,7 @@ export { VectorOperation } from './operations/VectorOperation.js';
 export { PocketOperation } from './operations/PocketOperation.js';
 export { RasterFillOperation } from './operations/RasterFillOperation.js';
 export { LayeredStepdownOperation } from './operations/LayeredStepdownOperation.js';
+export { DragKnifeOperation } from './operations/DragKnifeOperation.js';
 export { VCarveOperation } from './operations/VCarveOperation.js';
 export { LaserOperation } from './operations/LaserOperation.js';
 export { WavyOperation } from './operations/WavyOperation.js';

@@ -17,6 +17,10 @@ export class UniversalEngine {
     return this.registry.describeSource(source);
   }
 
+  traceBitmapToVectorSource(source, config = {}) {
+    return this.registry.traceBitmapToVectorSource(source, config);
+  }
+
   listOperations(filters = {}) {
     return this.registry.listOperations(filters);
   }
