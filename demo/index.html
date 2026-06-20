@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>OpenBuilds CAM Engine Demo</title>
+<link rel="stylesheet" href="demo.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>OpenBuilds CAM Engine</h1>
+    <p>Toolpath demo with 2D and 3D previews.</p>
+  </header>
+  <div id="layout">
+    <nav id="sidebar">
+      <section>
+        <h2>Shape</h2>
+        <div class="form-group">
+          <select id="shapeSelect">
+            <option value="square">Square 50mm</option>
+            <option value="circle">Circle 50mm</option>
+            <option value="star">Star 50mm</option>
+            <option value="rectangle">Rectangle 80x40mm</option>
+            <option value="ring">Ring</option>
+            <option value="cross">Cross</option>
+          </select>
+        </div>
+      </section>
+      <section>
+        <h2>Operation</h2>
+        <div class="form-group">
+          <select id="operationSelect">
+            <option value="cut">Vector Cut</option>
+            <option value="offsetInside">Vector Inside Offset</option>
+            <option value="offsetOutside">Vector Outside Offset</option>
+            <option value="stepdown">Vector Layered Stepdown</option>
+            <option value="pocket">Pocket</option>
+            <option value="raster">Raster Fill</option>
+            <option value="laser">Laser Cut</option>
+            <option value="laserFill">Laser Fill</option>
+            <option value="vcarve">V-Carve</option>
+          </select>
+        </div>
+        <div id="configPanel"></div>
+        <button id="generateBtn" class="btn-primary">Generate toolpath</button>
+      </section>
+      <section>
+        <h2>G-Code</h2>
+        <div class="form-group">
+          <label>Output type</label>
+          <select id="outputType">
+            <option value="laser">Laser</option>
+            <option value="mill">Mill</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Feed rate (mm/min)</label>
+          <input type="number" id="feedRate" value="800" min="1">
+        </div>
+        <button id="gcodeBtn" class="btn-secondary">Generate G-Code</button>
+        <div class="btn-row">
+          <button id="copyBtn" class="btn-small">Copy</button>
+          <button id="saveBtn" class="btn-small">Save .nc</button>
+        </div>
+      </section>
+    </nav>
+    <main id="content">
+      <div id="viewport">
+        <div class="preview-pane"><canvas id="canvas"></canvas></div>
+        <div class="preview-pane"><div id="threeViewport"></div></div>
+        <div id="viewportInfo">Select a shape and operation, then Generate</div>
+      </div>
+      <div id="tabs">
+        <button class="tab active" data-panel="code">Code</button>
+        <button class="tab" data-panel="info">Info</button>
+        <button class="tab" data-panel="gcode">G-Code</button>
+      </div>
+      <div id="results">
+        <div id="codePanel" class="panel active">
+          <pre id="codeContent"></pre>
+        </div>
+        <div id="infoPanel" class="panel">
+          <pre id="infoContent">No toolpath generated yet</pre>
+        </div>
+        <div id="gcodePanel" class="panel">
+          <pre id="gcodeContent"></pre>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+<script src="../../lib/clipperjs/clipper_unminified.js"></script>
+<script src="../../lib/threejs/three.min.js"></script>
+<script src="../../lib/threejs/OrbitControls.js"></script>
+<script type="module" src="demo.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "name": "openbuilds-cam-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Modular worker-driven CAM engine for OpenBuilds CAM",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./core/*": "./core/*.js",
+    "./operations/*": "./operations/*.js",
+    "./adapters/*": "./adapters/*.js",
+    "./io/*": "./io/*.js",
+    "./types/*": "./types/*.js"
+  },
+  "browser": {
+    "./core/WorkerManager.js": "./core/WorkerManager.js"
+  },
+  "scripts": {
+    "test": "node --import ./test/_setup.js --test",
+    "test:watch": "node --import ./test/_setup.js --test --watch"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "peerDependencies": {
+    "three": ">=0.120.0"
+  }
+}
