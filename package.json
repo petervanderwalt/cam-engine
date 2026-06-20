@@ -1,8 +1,8 @@
 {
-  "name": "openbuilds-cam-engine",
+  "name": "cam-engine",
   "version": "1.0.0",
   "type": "module",
-  "description": "Modular worker-driven CAM engine for OpenBuilds CAM",
+  "description": "Universal toolpath-first CAM engine for vector, bitmap, and mesh workflows",
   "main": "index.js",
   "exports": {
     ".": "./index.js",

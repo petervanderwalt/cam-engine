@@ -1,4 +1,9 @@
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import * as ClipperModule from 'https://cdn.jsdelivr.net/npm/js-clipper@1.0.1/+esm';
 import { Engine, Path, Toolpath, GCodeWriter, ClipperAdapter, LayeredStepdownOperation } from '../index.js';
+
+globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
 const engine = new Engine();
 const stepdown = new LayeredStepdownOperation();
@@ -62,7 +67,7 @@ function initThree() {
   three.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
   three.camera.up.set(0, 0, 1);
   three.camera.position.set(100, -120, 90);
-  three.controls = new THREE.OrbitControls(three.camera, three.renderer.domElement);
+  three.controls = new OrbitControls(three.camera, three.renderer.domElement);
   three.controls.enableDamping = true;
   three.controls.target.set(0, 0, 0);
   three.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
