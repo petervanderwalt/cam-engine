@@ -1,12 +1,13 @@
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import * as THREE from 'https://esm.sh/three@0.160.0';
+import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import * as ClipperModule from 'https://cdn.jsdelivr.net/npm/js-clipper@1.0.1/+esm';
-import { Engine, Path, Toolpath, GCodeWriter, ClipperAdapter, LayeredStepdownOperation } from '../index.js';
+import { Engine, Path, Toolpath, GCodeWriter, ClipperAdapter, LayeredStepdownOperation, VCarveOperation } from '../index.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
 const engine = new Engine();
 const stepdown = new LayeredStepdownOperation();
+const vcarveOp = new VCarveOperation();
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
 const canvas = document.getElementById('canvas');
@@ -27,30 +28,45 @@ const SHAPES = {
 };
 
 const CODE_EXAMPLES = {
-  cut: `const camPaths = engine.cut(geometry, [], false);`,
-  offsetInside: `const camPaths = engine.insideOutside(geometry, toolDia, true, cutWidth, 40, false, false);`,
-  offsetOutside: `const camPaths = engine.insideOutside(geometry, toolDia, false, cutWidth, 40, false, false);`,
-  stepdown: `const toolpath = stepdown.generate(paths, {
-  mode: 'outside',
-  toolDiameter: 3.175,
+  cut: `const camPaths = engine.cut(geometry, [], false);
+const toolpath = applyDepthToCamPaths(camPaths, {
   zStart: 0,
   zEnd: -3,
   passDepth: 0.5
-});`,
-  pocket: `const camPaths = engine.pocket(geometry, toolDia, 40, false);`,
-  raster: `const camPaths = engine.fillPath(geometry, lineDistance, angle);`,
+}, 'vector-cut');`,
+  offsetInside: `const camPaths = engine.insideOutside(geometry, toolDia, true, cutWidth, 40, false, false);
+const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-inside');`,
+  offsetOutside: `const camPaths = engine.insideOutside(geometry, toolDia, false, cutWidth, 40, false, false);
+const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-outside');`,
+  pocket: `const camPaths = engine.pocket(geometry, toolDia, 40, false);
+const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-pocket');`,
+  raster: `const camPaths = engine.fillPath(geometry, lineDistance, angle);
+const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-raster-fill');`,
   laser: `const camPaths = engine.cut(geometry, [], false);`,
   laserFill: `const camPaths = engine.fillPath(geometry, lineDistance, angle);`,
-  vcarve: `const camPaths = engine.vCarve(geometry, 60, 0.5);`
+  vcarve: `const camPaths = vcarveOp.generate(paths, {
+  cutterAngle: 60,
+  passDepth: 0.5
+});`
 };
 
+function withDepthFields(schema, defaults = {}) {
+  return {
+    ...schema,
+    zStart: { label: 'Z start (mm)', default: defaults.zStart ?? 0, step: 0.1 },
+    zEnd: { label: 'Z end (mm)', default: defaults.zEnd ?? 0, step: 0.1 },
+    passDepth: { label: 'Pass depth (mm)', default: defaults.passDepth ?? 0.5, step: 0.1 },
+    finishPassDepth: { label: 'Finish pass (mm)', default: defaults.finishPassDepth ?? 0, step: 0.1 },
+    springPasses: { label: 'Spring passes', default: defaults.springPasses ?? 0, step: 1 }
+  };
+}
+
 const OP_CONFIG = {
-  cut: { direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  offsetInside: { toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, cutWidth: { label: 'Cut width (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  offsetOutside: { toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, cutWidth: { label: 'Cut width (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  stepdown: { mode: { label: 'Strategy', type: 'select', default: 'outside', options: ['cut', 'inside', 'outside', 'pocket'] }, toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, cutWidth: { label: 'Cut width (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Climb', options: ['Conventional', 'Climb'] }, zStart: { label: 'Z start (mm)', default: 0, step: 0.1 }, zEnd: { label: 'Z end (mm)', default: -3, step: 0.1 }, passDepth: { label: 'Pass depth (mm)', default: 0.5, step: 0.1 }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  pocket: { toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  raster: { lineDistance: { label: 'Line spacing (mm)', default: 0.5, step: 0.1 }, angle: { label: 'Angle (deg)', default: 0, step: 15 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
+  cut: withDepthFields({ direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -3 }),
+  offsetInside: withDepthFields({ toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, cutWidth: { label: 'Cut width (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -3 }),
+  offsetOutside: withDepthFields({ toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, cutWidth: { label: 'Cut width (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -3 }),
+  pocket: withDepthFields({ toolDiameter: { label: 'Tool dia (mm)', default: 3.175, step: 0.1 }, stepOver: { label: 'Stepover %', default: 40, step: 5 }, direction: { label: 'Direction', type: 'select', default: 'Conventional', options: ['Conventional', 'Climb'] }, margin: { label: 'Margin (mm)', default: 0, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -3 }),
+  raster: withDepthFields({ lineDistance: { label: 'Line spacing (mm)', default: 0.5, step: 0.1 }, angle: { label: 'Angle (deg)', default: 0, step: 15 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -1 }),
   laser: { segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
   laserFill: { lineDistance: { label: 'Line spacing (mm)', default: 0.5, step: 0.1 }, angle: { label: 'Angle (deg)', default: 0, step: 15 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
   vcarve: { cutterAngle: { label: 'Cutter angle (deg)', default: 60, step: 5 }, passDepth: { label: 'Pass depth (mm)', default: 0.5, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }
@@ -150,6 +166,22 @@ function camPathsToToolpath(camPaths, operationType, config) {
   }
   toolpath.computeBounds();
   return toolpath;
+}
+
+function applyDepthToCamPaths(camPaths, config, operationType) {
+  const zStart = Number.isFinite(config.zStart) ? config.zStart : 0;
+  const zEnd = Number.isFinite(config.zEnd) ? config.zEnd : 0;
+  if (Math.abs(zStart - zEnd) <= 1e-9) {
+    return camPathsToToolpath(camPaths, operationType, config);
+  }
+  return stepdown.generateFromCamPaths(camPaths, {
+    ...config,
+    zStart,
+    zEnd,
+    passDepth: config.passDepth || 0.5,
+    finishPassDepth: config.finishPassDepth || 0,
+    springPasses: config.springPasses || 0
+  }, operationType, { inputType: 'vector' });
 }
 
 function getBounds(points) {
@@ -300,35 +332,46 @@ function generateToolpath() {
   currentToolpath = null;
   currentGCode = '';
 
-  if (operationType === 'stepdown') {
-    currentToolpath = stepdown.generate(shapes, config);
+  let camPaths = [];
+  let normalizedType = operationType;
+  if (operationType === 'cut') {
+    camPaths = engine.cut(geometry, [], config.direction === 'Climb');
+    normalizedType = 'vector-cut';
+  } else if (operationType === 'offsetInside') {
+    const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
+    const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
+    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
+    camPaths = engine.insideOutside(geometry, toolDiameter, true, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
+    normalizedType = 'vector-inside';
+  } else if (operationType === 'offsetOutside') {
+    const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
+    const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
+    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], config.margin * clipper.mmToClipperScale)[0];
+    camPaths = engine.insideOutside(geometry, toolDiameter, false, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
+    normalizedType = 'vector-outside';
+  } else if (operationType === 'pocket') {
+    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
+    camPaths = engine.pocket(geometry, (config.toolDiameter || 3.175) * clipper.mmToClipperScale, config.stepOver || 40, config.direction === 'Climb');
+    normalizedType = 'vector-pocket';
+  } else if (operationType === 'raster' || operationType === 'laserFill') {
+    camPaths = engine.fillPath(geometry, (config.lineDistance || 0.5) * clipper.mmToClipperScale, config.angle || 0);
+    normalizedType = operationType === 'raster' ? 'vector-raster-fill' : 'laser-fill';
+  } else if (operationType === 'laser') {
+    camPaths = engine.cut(geometry, [], false);
+    normalizedType = 'laser-vector';
+  } else if (operationType === 'vcarve') {
+    camPaths = vcarveOp.generate(shapes, {
+      cutterAngle: config.cutterAngle || 60,
+      passDepth: config.passDepth || 0.5
+    });
+    normalizedType = 'vector-vcarve';
+  }
+  if (camPaths.length) engine.reduceCamPaths(camPaths, (config.segmentLength || 0.1) * clipper.mmToClipperScale);
+  currentCamPaths = camPaths;
+  if (operationType === 'cut' || operationType === 'offsetInside' || operationType === 'offsetOutside' || operationType === 'pocket' || operationType === 'raster') {
+    currentToolpath = applyDepthToCamPaths(camPaths, config, normalizedType);
   } else {
-    let camPaths = [];
-    if (operationType === 'cut') {
-      camPaths = engine.cut(geometry, [], config.direction === 'Climb');
-    } else if (operationType === 'offsetInside') {
-      const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
-      const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
-      if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
-      camPaths = engine.insideOutside(geometry, toolDiameter, true, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
-    } else if (operationType === 'offsetOutside') {
-      const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
-      const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
-      if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], config.margin * clipper.mmToClipperScale)[0];
-      camPaths = engine.insideOutside(geometry, toolDiameter, false, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
-    } else if (operationType === 'pocket') {
-      if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
-      camPaths = engine.pocket(geometry, (config.toolDiameter || 3.175) * clipper.mmToClipperScale, config.stepOver || 40, config.direction === 'Climb');
-    } else if (operationType === 'raster' || operationType === 'laserFill') {
-      camPaths = engine.fillPath(geometry, (config.lineDistance || 0.5) * clipper.mmToClipperScale, config.angle || 0);
-    } else if (operationType === 'laser') {
-      camPaths = engine.cut(geometry, [], false);
-    } else if (operationType === 'vcarve') {
-      camPaths = engine.vCarve(geometry, config.cutterAngle || 60, config.passDepth || 0.5);
-    }
-    if (camPaths.length) engine.reduceCamPaths(camPaths, (config.segmentLength || 0.1) * clipper.mmToClipperScale);
-    currentCamPaths = camPaths;
-    currentToolpath = camPathsToToolpath(camPaths, operationType, config);
+    currentToolpath = camPathsToToolpath(camPaths, normalizedType, config);
   }
 
   showInfo(currentToolpath);
