@@ -20,6 +20,11 @@ export class WorkerManager {
   }
 
   async init(workerUrl) {
+    console.log('[WorkerManager] init', {
+      workerUrl: String(workerUrl),
+      browserWorker: this._useWorker,
+      nodeWorker: this._useNodeWorker
+    });
     if (this._useWorker) {
       return this._initBrowser(workerUrl);
     } else if (this._useNodeWorker) {
@@ -31,17 +36,21 @@ export class WorkerManager {
   _initBrowser(workerUrl) {
     return new Promise((resolve, reject) => {
       try {
+        console.log('[WorkerManager] starting browser worker', String(workerUrl));
         this.worker = this._workerFactory
           ? this._workerFactory(workerUrl, { type: 'module' })
           : new Worker(workerUrl, { type: 'module' });
         this.worker.onmessage = (e) => this._handleMessage(e.data);
         this.worker.onerror = (e) => {
+          console.error('[WorkerManager] browser worker error', e);
           this._rejectAll(e.message);
           reject(e);
         };
         this._ready = true;
+        console.log('[WorkerManager] browser worker ready');
         resolve();
       } catch (e) {
+        console.error('[WorkerManager] browser worker init failed', e);
         reject(e);
       }
     });
@@ -50,21 +59,30 @@ export class WorkerManager {
   async _initNode(workerUrl) {
     try {
       const { Worker } = await import('worker_threads');
+      console.log('[WorkerManager] starting node worker', String(workerUrl));
       this.worker = this._workerFactory
         ? this._workerFactory(workerUrl, { type: 'module' })
         : new Worker(workerUrl, { type: 'module' });
       this.worker.on('message', (data) => this._handleMessage(data));
       this.worker.on('error', (e) => {
+        console.error('[WorkerManager] node worker error', e);
         this._rejectAll(e.message);
       });
       this._ready = true;
+      console.log('[WorkerManager] node worker ready');
     } catch (e) {
+      console.error('[WorkerManager] node worker init failed', e);
       throw new Error('Node.js Worker init failed: ' + e.message);
     }
   }
 
   _handleMessage(data) {
     const { id, result, error } = data;
+    console.log('[WorkerManager] message received', {
+      id,
+      hasError: !!error,
+      hasResult: result !== undefined
+    });
     const pending = this._pending.get(id);
     if (!pending) return;
     this._pending.delete(id);
@@ -92,6 +110,11 @@ export class WorkerManager {
       this._pending.set(id, { resolve, reject });
       try {
         const msg = { id, type, payload };
+        console.log('[WorkerManager] posting message', {
+          id,
+          type,
+          transferables: transferables?.length || 0
+        });
         if (this._useWorker && transferables) {
           this.worker.postMessage(msg, transferables);
         } else if (this.worker) {
@@ -99,6 +122,7 @@ export class WorkerManager {
         }
       } catch (e) {
         this._pending.delete(id);
+        console.error('[WorkerManager] postMessage failed', { id, type, error: e });
         reject(e);
       }
     });

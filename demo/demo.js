@@ -14,6 +14,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const threeHost = document.getElementById('threeViewport');
 const generateButton = document.getElementById('generateBtn');
+let activeDebugTimer = null;
 
 let currentCamPaths = [];
 let currentToolpath = null;
@@ -408,16 +409,36 @@ async function generateToolpath() {
   const operationType = document.getElementById('operationSelect').value;
   const config = buildConfig();
   const shapes = getShapePaths();
+  const startedAt = performance.now();
+  console.log('[demo] generateToolpath start', {
+    operationType,
+    shape: document.getElementById('shapeSelect').value,
+    config,
+    pathCount: shapes.length
+  });
   currentCamPaths = [];
   currentToolpath = null;
   currentGCode = '';
   setBusy(true, 'Generating toolpath in worker...');
+  clearTimeout(activeDebugTimer);
+  activeDebugTimer = setTimeout(() => {
+    console.warn('[demo] toolpath request still pending after 5s', {
+      operationType,
+      config
+    });
+  }, 5000);
   try {
     const mapped = mapDemoOperation(operationType, config);
+    console.log('[demo] mapped operation', mapped);
     const job = await previewEngine.createToolpath({
       source: { type: 'vector', paths: shapes },
       operationId: mapped.operationId,
       config: mapped.config
+    });
+    console.log('[demo] worker job resolved', {
+      operationType: job.result?.operationType,
+      ms: Math.round(performance.now() - startedAt),
+      pathCount: job.result?.paths?.length
     });
     currentToolpath = job.result;
     if (currentToolpath && currentToolpath.bounds && Math.abs(currentToolpath.bounds.maxZ - currentToolpath.bounds.minZ) < 1e-9) {
@@ -429,10 +450,15 @@ async function generateToolpath() {
     updateViewportInfo(currentToolpath);
     document.getElementById('gcodeContent').textContent = '';
   } catch (error) {
+    console.error('[demo] worker job failed', error);
     document.getElementById('infoContent').textContent = error.message;
     document.getElementById('viewportInfo').textContent = `Toolpath generation failed: ${error.message}`;
   } finally {
+    clearTimeout(activeDebugTimer);
     setBusy(false);
+    console.log('[demo] generateToolpath end', {
+      ms: Math.round(performance.now() - startedAt)
+    });
   }
 }
 

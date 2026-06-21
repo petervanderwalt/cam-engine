@@ -47,24 +47,34 @@ export class WorkerEngine {
   }
 
   async init() {
+    console.log('[WorkerEngine] init requested', {
+      preferWorker: this.preferWorker,
+      workerAvailable: this.isWorkerAvailable(),
+      workerFailed: this._workerFailed
+    });
     if (!this.preferWorker || !this.isWorkerAvailable() || this._workerFailed) {
+      console.log('[WorkerEngine] init using sync fallback');
       return false;
     }
     if (this._workerEnabled) {
+      console.log('[WorkerEngine] worker already enabled');
       return true;
     }
     if (!this._initPromise) {
       this._initPromise = this.workerManager.init(this.workerUrl)
         .then(() => {
           this._workerEnabled = true;
+          console.log('[WorkerEngine] worker init complete');
           return true;
         })
         .catch(error => {
           this._workerFailed = true;
           this._workerEnabled = false;
+          console.error('[WorkerEngine] worker init failed', error);
           if (!this.fallbackToSync) {
             throw error;
           }
+          console.log('[WorkerEngine] falling back to sync engine');
           return false;
         });
     }
@@ -102,12 +112,29 @@ export class WorkerEngine {
   }
 
   async _invoke(type, payload = {}, transferSource = null) {
+    console.log('[WorkerEngine] invoke start', {
+      type,
+      operationId: payload?.operationId
+    });
     const useWorker = await this.init();
     if (!useWorker) {
+      console.log('[WorkerEngine] invoke sync', {
+        type,
+        operationId: payload?.operationId
+      });
       return this._invokeSync(type, payload);
     }
     const transferables = collectTransferables(transferSource);
+    console.log('[WorkerEngine] invoke worker', {
+      type,
+      operationId: payload?.operationId,
+      transferables: transferables.length
+    });
     const result = await this.workerManager.postMessage(type, payload, transferables);
+    console.log('[WorkerEngine] invoke worker result', {
+      type,
+      operationId: payload?.operationId
+    });
     return reviveWorkerValue(result);
   }
 
@@ -133,4 +160,3 @@ export class WorkerEngine {
     throw new Error(`Unknown worker engine request: ${type}`);
   }
 }
-
