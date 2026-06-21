@@ -1,18 +1,19 @@
 import * as THREE from 'https://esm.sh/three@0.160.0';
 import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import * as ClipperModule from 'https://cdn.jsdelivr.net/npm/js-clipper@1.0.1/+esm';
-import { UniversalEngine, Path } from '../index.js';
+import { WorkerEngine, Path } from '../index.js';
 import { GCodeWriter } from '../io/GCodeWriter.js';
 import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
-const previewEngine = new UniversalEngine();
+const previewEngine = new WorkerEngine();
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const threeHost = document.getElementById('threeViewport');
+const generateButton = document.getElementById('generateBtn');
 
 let currentCamPaths = [];
 let currentToolpath = null;
@@ -28,7 +29,7 @@ const SHAPES = {
 };
 
 const CODE_EXAMPLES = {
-  cut: `const job = engine.createToolpath({
+  cut: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-cut',
   config: {
@@ -37,37 +38,37 @@ const CODE_EXAMPLES = {
   passDepth: 0.5
   }
 });`,
-  offsetInside: `const job = engine.createToolpath({
+  offsetInside: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-inside',
   config
 });`,
-  offsetOutside: `const job = engine.createToolpath({
+  offsetOutside: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-outside',
   config
 });`,
-  pocket: `const job = engine.createToolpath({
+  pocket: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-pocket',
   config
 });`,
-  raster: `const job = engine.createToolpath({
+  raster: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-raster-fill',
   config: { ...config, spacing: config.lineDistance }
 });`,
-  laser: `const job = engine.createToolpath({
+  laser: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'laser-vector',
   config
 });`,
-  laserFill: `const job = engine.createToolpath({
+  laserFill: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'laser-fill',
   config
 });`,
-  vcarve: `const job = engine.createToolpath({
+  vcarve: `const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-vcarve',
   config
@@ -355,29 +356,44 @@ function updateOperationUi(operationType) {
   document.getElementById('codeContent').textContent = CODE_EXAMPLES[operationType] || '';
 }
 
-function generateToolpath() {
+function setBusy(isBusy, message = '') {
+  generateButton.disabled = isBusy;
+  generateButton.textContent = isBusy ? 'Generating...' : 'Generate toolpath';
+  if (message) {
+    document.getElementById('viewportInfo').textContent = message;
+  }
+}
+
+async function generateToolpath() {
   const operationType = document.getElementById('operationSelect').value;
   const config = buildConfig();
   const shapes = getShapePaths();
   currentCamPaths = [];
   currentToolpath = null;
   currentGCode = '';
-  const mapped = mapDemoOperation(operationType, config);
-  const job = previewEngine.createToolpath({
-    source: { type: 'vector', paths: shapes },
-    operationId: mapped.operationId,
-    config: mapped.config
-  });
-  currentToolpath = job.result;
-  if (currentToolpath && currentToolpath.bounds && Math.abs(currentToolpath.bounds.maxZ - currentToolpath.bounds.minZ) < 1e-9) {
-    currentCamPaths = toolpathToCamPaths(currentToolpath);
+  setBusy(true, 'Generating toolpath in worker...');
+  try {
+    const mapped = mapDemoOperation(operationType, config);
+    const job = await previewEngine.createToolpath({
+      source: { type: 'vector', paths: shapes },
+      operationId: mapped.operationId,
+      config: mapped.config
+    });
+    currentToolpath = job.result;
+    if (currentToolpath && currentToolpath.bounds && Math.abs(currentToolpath.bounds.maxZ - currentToolpath.bounds.minZ) < 1e-9) {
+      currentCamPaths = toolpathToCamPaths(currentToolpath);
+    }
+    showInfo(currentToolpath);
+    draw2D(shapes, currentToolpath);
+    draw3D(shapes, currentToolpath);
+    updateViewportInfo(currentToolpath);
+    document.getElementById('gcodeContent').textContent = '';
+  } catch (error) {
+    document.getElementById('infoContent').textContent = error.message;
+    document.getElementById('viewportInfo').textContent = `Toolpath generation failed: ${error.message}`;
+  } finally {
+    setBusy(false);
   }
-
-  showInfo(currentToolpath);
-  draw2D(shapes, currentToolpath);
-  draw3D(shapes, currentToolpath);
-  updateViewportInfo(currentToolpath);
-  document.getElementById('gcodeContent').textContent = '';
 }
 
 function supportsFlatGCode(toolpath) {
@@ -435,6 +451,9 @@ window.addEventListener('resize', () => {
     draw2D(getShapePaths(), currentToolpath);
     fitCamera(currentToolpath);
   }
+});
+window.addEventListener('beforeunload', () => {
+  previewEngine.terminate();
 });
 
 updateOperationUi('cut');

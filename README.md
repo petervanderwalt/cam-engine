@@ -83,6 +83,7 @@ flowchart TD
 ## Main Exports
 
 - `UniversalEngine`
+- `WorkerEngine`
 - `OperationRegistry`
 - `Path`
 - `Toolpath`
@@ -130,6 +131,43 @@ const job = engine.createToolpath({
 
 console.log(job.result.toJSON());
 ```
+
+## Worker API
+
+Use `WorkerEngine` in browser UIs to keep toolpath generation off the main thread.
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine();
+
+const job = await engine.createToolpath({
+  source: {
+    type: 'vector',
+    paths: [
+      {
+        closed: true,
+        points: [
+          { x: 0, y: 0, z: 0 },
+          { x: 40, y: 0, z: 0 },
+          { x: 40, y: 40, z: 0 },
+          { x: 0, y: 40, z: 0 }
+        ]
+      }
+    ]
+  },
+  operationId: 'vector-pocket',
+  config: {
+    toolDiameter: 3.175,
+    stepOver: 40,
+    zStart: 0,
+    zEnd: -6,
+    passDepth: 1.5
+  }
+});
+```
+
+`WorkerEngine` falls back to the synchronous engine when workers are unavailable or disabled.
 
 ## Capability Discovery
 
@@ -209,6 +247,7 @@ Current demo coverage:
 - V-carve
 - 2D preview
 - 3D preview of toolpaths
+- Worker-backed toolpath generation
 
 Current demo limitation:
 
@@ -226,6 +265,7 @@ npm test
 Current validation style:
 
 - Node unit tests
+- Node worker integration tests
 - Toolpath bounds checks
 - Z-level checks
 - Expected path count / geometry checks
