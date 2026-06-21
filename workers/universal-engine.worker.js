@@ -12,6 +12,15 @@ function assetUrl(path) {
   return url;
 }
 
+function workerParams() {
+  return new URL(import.meta.url).searchParams;
+}
+
+function useDebugCamCpp() {
+  const value = workerParams().get('camCpp');
+  return value === 'debug' || value === 'assert';
+}
+
 function isNodeRuntime() {
   return typeof process !== 'undefined' && !!process.versions?.node;
 }
@@ -58,14 +67,19 @@ async function ensureCamCpp() {
     return;
   }
   console.log('[cam-engine worker] starting cam-cpp bootstrap');
+  const scriptName = useDebugCamCpp() ? 'web-cam-cpp.debug.js' : 'web-cam-cpp.js';
+  const wasmName = useDebugCamCpp() ? 'web-cam-cpp.debug.wasm' : 'web-cam-cpp.wasm';
   const wasmBase = assetUrl('../dependencies/cam-cpp/');
   globalThis.Module = {
     ...(globalThis.Module || {}),
     locateFile(path) {
+      if (path === 'web-cam-cpp.wasm') {
+        return new URL(wasmName, wasmBase).href;
+      }
       return new URL(path, wasmBase).href;
     }
   };
-  await evalGlobalScript(assetUrl('../dependencies/cam-cpp/web-cam-cpp.js'));
+  await evalGlobalScript(assetUrl(`../dependencies/cam-cpp/${scriptName}`));
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('cam-cpp WASM worker init timed out')), 15000);
     const done = () => {

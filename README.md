@@ -307,6 +307,10 @@ The demo now loads browser-only dependencies from CDN:
 - `three`
 - `OrbitControls`
 
+Debugging native V-carve in the demo:
+
+- Append `?camCppDebug=1` to the demo URL to force the asserted `web-cam-cpp.debug.js/.wasm` pair.
+
 Current demo coverage:
 
 - Vector cut
