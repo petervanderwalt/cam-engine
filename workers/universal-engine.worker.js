@@ -3,6 +3,15 @@ import { serializeWorkerValue } from '../core/WorkerCodec.js';
 
 console.log('[cam-engine worker] module boot');
 
+function assetUrl(path) {
+  const url = new URL(path, import.meta.url);
+  const version = new URL(import.meta.url).searchParams.get('v');
+  if (version) {
+    url.searchParams.set('v', version);
+  }
+  return url;
+}
+
 function isNodeRuntime() {
   return typeof process !== 'undefined' && !!process.versions?.node;
 }
@@ -32,7 +41,7 @@ async function ensureClipperLib() {
     console.log('[cam-engine worker] ClipperLib ready in node');
     return;
   }
-  await evalGlobalScript(new URL('../dependencies/clipper-lib.cjs', import.meta.url));
+  await evalGlobalScript(assetUrl('../dependencies/clipper-lib.cjs'));
   if (typeof ClipperLib === 'undefined') {
     throw new Error('ClipperLib did not initialize in worker runtime');
   }
@@ -49,14 +58,14 @@ async function ensureCamCpp() {
     return;
   }
   console.log('[cam-engine worker] starting cam-cpp bootstrap');
-  const wasmBase = new URL('../dependencies/cam-cpp/', import.meta.url);
+  const wasmBase = assetUrl('../dependencies/cam-cpp/');
   globalThis.Module = {
     ...(globalThis.Module || {}),
     locateFile(path) {
       return new URL(path, wasmBase).href;
     }
   };
-  await evalGlobalScript(new URL('../dependencies/cam-cpp/web-cam-cpp.js', import.meta.url));
+  await evalGlobalScript(assetUrl('../dependencies/cam-cpp/web-cam-cpp.js'));
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('cam-cpp WASM worker init timed out')), 15000);
     const done = () => {

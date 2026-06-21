@@ -7,7 +7,11 @@ import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
-const previewEngine = new WorkerEngine();
+const DEMO_ASSET_VERSION = '2026-06-21-vcarve-fix-2';
+
+const previewEngine = new WorkerEngine({
+  workerUrl: new URL(`../workers/universal-engine.worker.js?v=${DEMO_ASSET_VERSION}`, import.meta.url)
+});
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
 const threeHost = document.getElementById('threeViewport');
