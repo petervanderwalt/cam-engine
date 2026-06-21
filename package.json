@@ -5,12 +5,7 @@
   "description": "Universal toolpath-first CAM engine for vector, bitmap, and mesh workflows",
   "main": "index.js",
   "exports": {
-    ".": "./index.js",
-    "./core/*": "./core/*.js",
-    "./operations/*": "./operations/*.js",
-    "./adapters/*": "./adapters/*.js",
-    "./io/*": "./io/*.js",
-    "./types/*": "./types/*.js"
+    ".": "./index.js"
   },
   "browser": {
     "./core/WorkerManager.js": "./core/WorkerManager.js"

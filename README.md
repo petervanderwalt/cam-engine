@@ -28,8 +28,8 @@ No post/gcode abstraction in the core API.
 - `vector-raster-fill`
 - `vector-crosshatch`
 - `vector-concentric`
-- `vector-stepdown`
 - `vector-vcarve`
+- `drag-knife`
 
 ### Laser
 
@@ -43,19 +43,13 @@ No post/gcode abstraction in the core API.
 ### Bitmap
 
 - `bitmap-raster`
-- `bitmap-trace`
 - `bitmap-halftone`
 - `bitmap-wavy`
 - `bitmap-heightmap`
-- `bitmap-trace-cut`
-- `bitmap-trace-inside`
-- `bitmap-trace-outside`
-- `bitmap-trace-pocket`
-- `bitmap-trace-pocket-raster`
-- `bitmap-trace-raster-fill`
-- `bitmap-trace-crosshatch`
-- `bitmap-trace-vcarve`
-- `bitmap-trace-stepdown`
+
+Bitmap trace is an import conversion step.
+
+Use `traceBitmapToVectorSource(...)`, then run normal vector operations on the result.
 
 ### Mesh
 
@@ -81,7 +75,7 @@ flowchart TD
   G --> H["Toolpath"]
   H --> I["Preview / Demo"]
   H --> J["Tests / Validation"]
-  H --> K["Optional GCodeWriter"]
+  H --> K["Validation / Export Layer"]
 ```
 
 ## API
@@ -90,13 +84,10 @@ flowchart TD
 
 - `UniversalEngine`
 - `OperationRegistry`
-- `Engine`
 - `Path`
 - `Toolpath`
 - `OperationConfig`
-- `GCodeWriter`
-
-Mesh-specific operations are exported directly too.
+- `STLReader`
 
 See [index.js](./index.js).
 
@@ -124,9 +115,8 @@ const job = engine.createToolpath({
       }
     ]
   },
-  operationId: 'vector-stepdown',
+  operationId: 'vector-outside',
   config: {
-    mode: 'outside',
     toolDiameter: 3.175,
     cutWidth: 3.175,
     zStart: 0,
@@ -212,7 +202,7 @@ Current demo coverage:
 
 - Vector cut
 - Inside/outside offset
-- Layered stepdown
+- Multi-pass vector depth
 - Pocket
 - Raster fill
 - Laser cut/fill
@@ -222,7 +212,7 @@ Current demo coverage:
 
 Current demo limitation:
 
-- G-code export in the demo is only wired for flat cam-path output.
+- G-code export in the demo is an internal preview utility, not part of the public API.
 - Variable-Z mesh and stepdown preview works, but full 3D toolpath export UI is not finished.
 
 ## Validation

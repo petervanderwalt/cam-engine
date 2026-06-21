@@ -14,6 +14,10 @@ function makeSquareClipper(size) {
   ];
 }
 
+function clipperToMm(value, scale) {
+  return value / scale;
+}
+
 test('RasterFill: basic fill produces open lines', () => {
   const op = new RasterFillOperation();
   const geo = [makeSquareClipper(100)];
@@ -23,11 +27,16 @@ test('RasterFill: basic fill produces open lines', () => {
 
 test('RasterFill: lines stay within geometry bounds', () => {
   const op = new RasterFillOperation();
+  const scale = op.clipper.mmToClipperScale;
   const geo = [makeSquareClipper(50)];
   const result = op.generate(geo, { spacing: 5, angle: 0 });
   assert.ok(result.length > 0);
+  assert.equal(result.length, 5);
   for (const cp of result) {
     assert.ok(cp.path.length >= 2, 'Each path should have at least 2 points');
+    const x0 = clipperToMm(cp.path[0].X, scale);
+    const x1 = clipperToMm(cp.path[cp.path.length - 1].X, scale);
+    assert.ok(Math.abs(x0 - x1) < 0.01, 'Angle 0 raster lines should remain vertical in the current planner');
   }
 });
 

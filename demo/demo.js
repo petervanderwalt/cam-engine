@@ -1,13 +1,13 @@
 import * as THREE from 'https://esm.sh/three@0.160.0';
 import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import * as ClipperModule from 'https://cdn.jsdelivr.net/npm/js-clipper@1.0.1/+esm';
-import { Engine, Path, Toolpath, GCodeWriter, ClipperAdapter, LayeredStepdownOperation, VCarveOperation } from '../index.js';
+import { UniversalEngine, Path } from '../index.js';
+import { GCodeWriter } from '../io/GCodeWriter.js';
+import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
-const engine = new Engine();
-const stepdown = new LayeredStepdownOperation();
-const vcarveOp = new VCarveOperation();
+const previewEngine = new UniversalEngine();
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
 const canvas = document.getElementById('canvas');
@@ -28,25 +28,49 @@ const SHAPES = {
 };
 
 const CODE_EXAMPLES = {
-  cut: `const camPaths = engine.cut(geometry, [], false);
-const toolpath = applyDepthToCamPaths(camPaths, {
+  cut: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-cut',
+  config: {
   zStart: 0,
   zEnd: -3,
   passDepth: 0.5
-}, 'vector-cut');`,
-  offsetInside: `const camPaths = engine.insideOutside(geometry, toolDia, true, cutWidth, 40, false, false);
-const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-inside');`,
-  offsetOutside: `const camPaths = engine.insideOutside(geometry, toolDia, false, cutWidth, 40, false, false);
-const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-outside');`,
-  pocket: `const camPaths = engine.pocket(geometry, toolDia, 40, false);
-const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-pocket');`,
-  raster: `const camPaths = engine.fillPath(geometry, lineDistance, angle);
-const toolpath = applyDepthToCamPaths(camPaths, config, 'vector-raster-fill');`,
-  laser: `const camPaths = engine.cut(geometry, [], false);`,
-  laserFill: `const camPaths = engine.fillPath(geometry, lineDistance, angle);`,
-  vcarve: `const camPaths = vcarveOp.generate(paths, {
-  cutterAngle: 60,
-  passDepth: 0.5
+  }
+});`,
+  offsetInside: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-inside',
+  config
+});`,
+  offsetOutside: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-outside',
+  config
+});`,
+  pocket: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-pocket',
+  config
+});`,
+  raster: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-raster-fill',
+  config: { ...config, spacing: config.lineDistance }
+});`,
+  laser: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'laser-vector',
+  config
+});`,
+  laserFill: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'laser-fill',
+  config
+});`,
+  vcarve: `const job = engine.createToolpath({
+  source: { type: 'vector', paths },
+  operationId: 'vector-vcarve',
+  config
 });`
 };
 
@@ -153,35 +177,43 @@ function configHtml(schema) {
   return html;
 }
 
-function toClipperGeometry(paths) {
-  return paths.map(path => path.toClipperPath());
+function toolpathToCamPaths(toolpath) {
+  return toolpath.paths.map(path => ({
+    path: path.points.map(point => ({
+      X: point.x * clipper.mmToClipperScale,
+      Y: point.y * clipper.mmToClipperScale,
+      Z: (point.z || 0) * clipper.mmToClipperScale
+    })),
+    safeToClose: !!path.closed
+  }));
 }
 
-function camPathsToToolpath(camPaths, operationType, config) {
-  const toolpath = new Toolpath(operationType, config);
-  const scale = 1 / clipper.mmToClipperScale;
-  for (const camPath of camPaths) {
-    const points = camPath.path.map(point => ({ x: point.X * scale, y: point.Y * scale, z: (point.Z || 0) * scale }));
-    toolpath.addPath(new Path(points, !!camPath.safeToClose), 0);
+function mapDemoOperation(operationType, config) {
+  if (operationType === 'cut') {
+    return { operationId: 'vector-cut', config };
   }
-  toolpath.computeBounds();
-  return toolpath;
-}
-
-function applyDepthToCamPaths(camPaths, config, operationType) {
-  const zStart = Number.isFinite(config.zStart) ? config.zStart : 0;
-  const zEnd = Number.isFinite(config.zEnd) ? config.zEnd : 0;
-  if (Math.abs(zStart - zEnd) <= 1e-9) {
-    return camPathsToToolpath(camPaths, operationType, config);
+  if (operationType === 'offsetInside') {
+    return { operationId: 'vector-inside', config };
   }
-  return stepdown.generateFromCamPaths(camPaths, {
-    ...config,
-    zStart,
-    zEnd,
-    passDepth: config.passDepth || 0.5,
-    finishPassDepth: config.finishPassDepth || 0,
-    springPasses: config.springPasses || 0
-  }, operationType, { inputType: 'vector' });
+  if (operationType === 'offsetOutside') {
+    return { operationId: 'vector-outside', config };
+  }
+  if (operationType === 'pocket') {
+    return { operationId: 'vector-pocket', config };
+  }
+  if (operationType === 'raster') {
+    return { operationId: 'vector-raster-fill', config: { ...config, spacing: config.lineDistance || 0.5 } };
+  }
+  if (operationType === 'laser') {
+    return { operationId: 'laser-vector', config };
+  }
+  if (operationType === 'laserFill') {
+    return { operationId: 'laser-fill', config: { ...config, lineDistance: config.lineDistance || 0.5 } };
+  }
+  if (operationType === 'vcarve') {
+    return { operationId: 'vector-vcarve', config };
+  }
+  throw new Error(`Unsupported demo operation: ${operationType}`);
 }
 
 function getBounds(points) {
@@ -327,51 +359,18 @@ function generateToolpath() {
   const operationType = document.getElementById('operationSelect').value;
   const config = buildConfig();
   const shapes = getShapePaths();
-  const geometry = toClipperGeometry(shapes);
   currentCamPaths = [];
   currentToolpath = null;
   currentGCode = '';
-
-  let camPaths = [];
-  let normalizedType = operationType;
-  if (operationType === 'cut') {
-    camPaths = engine.cut(geometry, [], config.direction === 'Climb');
-    normalizedType = 'vector-cut';
-  } else if (operationType === 'offsetInside') {
-    const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
-    const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
-    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
-    camPaths = engine.insideOutside(geometry, toolDiameter, true, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
-    normalizedType = 'vector-inside';
-  } else if (operationType === 'offsetOutside') {
-    const toolDiameter = (config.toolDiameter || 3.175) * clipper.mmToClipperScale;
-    const cutWidth = (config.cutWidth || 3.175) * clipper.mmToClipperScale;
-    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], config.margin * clipper.mmToClipperScale)[0];
-    camPaths = engine.insideOutside(geometry, toolDiameter, false, cutWidth, config.stepOver || 40, config.direction === 'Climb', false);
-    normalizedType = 'vector-outside';
-  } else if (operationType === 'pocket') {
-    if (config.margin) for (let i = 0; i < geometry.length; i++) geometry[i] = clipper.offset([geometry[i]], -config.margin * clipper.mmToClipperScale)[0];
-    camPaths = engine.pocket(geometry, (config.toolDiameter || 3.175) * clipper.mmToClipperScale, config.stepOver || 40, config.direction === 'Climb');
-    normalizedType = 'vector-pocket';
-  } else if (operationType === 'raster' || operationType === 'laserFill') {
-    camPaths = engine.fillPath(geometry, (config.lineDistance || 0.5) * clipper.mmToClipperScale, config.angle || 0);
-    normalizedType = operationType === 'raster' ? 'vector-raster-fill' : 'laser-fill';
-  } else if (operationType === 'laser') {
-    camPaths = engine.cut(geometry, [], false);
-    normalizedType = 'laser-vector';
-  } else if (operationType === 'vcarve') {
-    camPaths = vcarveOp.generate(shapes, {
-      cutterAngle: config.cutterAngle || 60,
-      passDepth: config.passDepth || 0.5
-    });
-    normalizedType = 'vector-vcarve';
-  }
-  if (camPaths.length) engine.reduceCamPaths(camPaths, (config.segmentLength || 0.1) * clipper.mmToClipperScale);
-  currentCamPaths = camPaths;
-  if (operationType === 'cut' || operationType === 'offsetInside' || operationType === 'offsetOutside' || operationType === 'pocket' || operationType === 'raster') {
-    currentToolpath = applyDepthToCamPaths(camPaths, config, normalizedType);
-  } else {
-    currentToolpath = camPathsToToolpath(camPaths, normalizedType, config);
+  const mapped = mapDemoOperation(operationType, config);
+  const job = previewEngine.createToolpath({
+    source: { type: 'vector', paths: shapes },
+    operationId: mapped.operationId,
+    config: mapped.config
+  });
+  currentToolpath = job.result;
+  if (currentToolpath && currentToolpath.bounds && Math.abs(currentToolpath.bounds.maxZ - currentToolpath.bounds.minZ) < 1e-9) {
+    currentCamPaths = toolpathToCamPaths(currentToolpath);
   }
 
   showInfo(currentToolpath);

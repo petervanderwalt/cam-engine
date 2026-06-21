@@ -27,6 +27,10 @@ function camPathBounds(camPaths) {
   return { minX, minY, maxX, maxY, width: (maxX - minX), height: (maxY - minY) };
 }
 
+function clipperToMm(value, scale) {
+  return value / scale;
+}
+
 test('Vector: cut mode on 100x100 square produces closed paths', () => {
   const op = new VectorOperation();
   const geo = [makeSquareClipper(100)];
@@ -58,7 +62,6 @@ test('Vector: inside offset with margin', () => {
 
 test('Vector: outside offset expands bounds', () => {
   const op = new VectorOperation();
-  const scale = op.clipper.mmToClipperScale;
   const geo = [makeSquareClipper(100)];
   const inside = op.generate(geo, { mode: 'inside', toolDiameter: 6, cutWidth: 6, stepOver: 40 });
   const outside = op.generate(geo, { mode: 'outside', toolDiameter: 6, cutWidth: 6, stepOver: 40 });
@@ -66,6 +69,18 @@ test('Vector: outside offset expands bounds', () => {
   const bOut = camPathBounds(outside);
   assert.ok(bIn.width < bOut.width,
     `Inside width ${bIn.width} should be < outside ${bOut.width}`);
+});
+
+test('Vector: inside and outside offsets match expected cutter compensation', () => {
+  const op = new VectorOperation();
+  const scale = op.clipper.mmToClipperScale;
+  const geo = [makeSquareClipper(100)];
+  const inside = op.generate(geo, { mode: 'inside', toolDiameter: 6, cutWidth: 6, stepOver: 40 });
+  const outside = op.generate(geo, { mode: 'outside', toolDiameter: 6, cutWidth: 6, stepOver: 40 });
+  const insideWidth = clipperToMm(camPathBounds(inside).width, scale);
+  const outsideWidth = clipperToMm(camPathBounds(outside).width, scale);
+  assert.ok(Math.abs(insideWidth - 94) < 0.01, `Expected inside width 94mm, got ${insideWidth}mm`);
+  assert.ok(Math.abs(outsideWidth - 106) < 0.01, `Expected outside width 106mm, got ${outsideWidth}mm`);
 });
 
 test('Vector: empty input returns empty', () => {
