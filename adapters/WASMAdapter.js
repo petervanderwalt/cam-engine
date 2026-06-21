@@ -1,14 +1,7 @@
-let _camCppReady = false;
-if (typeof Module !== 'undefined') {
-  if (typeof Module._separateTabs === 'function' && typeof Module._vCarve === 'function') {
-    _camCppReady = true;
-  } else {
-    const _origCppInit = Module.onRuntimeInitialized;
-    Module.onRuntimeInitialized = function () {
-      if (_origCppInit) _origCppInit();
-      _camCppReady = true;
-    };
-  }
+function camCppReady() {
+  return typeof Module !== 'undefined' &&
+    typeof Module._separateTabs === 'function' &&
+    typeof Module._vCarve === 'function';
 }
 
 export class WASMAdapter {
@@ -21,12 +14,12 @@ export class WASMAdapter {
   }
 
   isReady() {
-    return _camCppReady;
+    return camCppReady();
   }
 
   vCarve(paths, cutterAngle, passDepth, onError) {
-    if (!_camCppReady) {
-      if (onError) onError('cam-cpp WASM module not loaded — V-Carve unavailable');
+    if (!camCppReady()) {
+      if (onError) onError('cam-cpp WASM module not loaded - V-Carve unavailable');
       return [];
     }
     if (cutterAngle <= 0 || cutterAngle >= 180) return [];
@@ -56,8 +49,8 @@ export class WASMAdapter {
 
   separateTabs(cutterPath, tabGeometry, onError) {
     if (tabGeometry.length === 0) return [cutterPath];
-    if (!_camCppReady) {
-      if (onError) onError('cam-cpp WASM module not loaded — cannot process tabs');
+    if (!camCppReady()) {
+      if (onError) onError('cam-cpp WASM module not loaded - cannot process tabs');
       return [cutterPath];
     }
     const clipper = this._clipper;

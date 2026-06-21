@@ -34,9 +34,12 @@ test('RasterFill: lines stay within geometry bounds', () => {
   assert.equal(result.length, 5);
   for (const cp of result) {
     assert.ok(cp.path.length >= 2, 'Each path should have at least 2 points');
-    const x0 = clipperToMm(cp.path[0].X, scale);
-    const x1 = clipperToMm(cp.path[cp.path.length - 1].X, scale);
-    assert.ok(Math.abs(x0 - x1) < 0.01, 'Angle 0 raster lines should remain vertical in the current planner');
+    for (const point of cp.path) {
+      const x = clipperToMm(point.X, scale);
+      const y = clipperToMm(point.Y, scale);
+      assert.ok(x >= -25.01 && x <= 25.01, `Expected x within square bounds, got ${x}`);
+      assert.ok(y >= -25.01 && y <= 25.01, `Expected y within square bounds, got ${y}`);
+    }
   }
 });
 

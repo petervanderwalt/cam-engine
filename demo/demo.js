@@ -10,8 +10,6 @@ globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || Cli
 const previewEngine = new WorkerEngine();
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
 const threeHost = document.getElementById('threeViewport');
 const generateButton = document.getElementById('generateBtn');
 let activeDebugTimer = null;
@@ -172,17 +170,6 @@ function animateThree() {
   three.renderer.render(three.scene, three.camera);
 }
 
-function resize2DCanvas() {
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * window.devicePixelRatio;
-  canvas.height = rect.height * window.devicePixelRatio;
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
-  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-  canvas._w = rect.width;
-  canvas._h = rect.height;
-}
-
 function resizeThree() {
   const rect = threeHost.getBoundingClientRect();
   three.camera.aspect = rect.width / Math.max(rect.height, 1);
@@ -277,44 +264,6 @@ function collectPoints(paths) {
   const points = [];
   for (const path of paths) points.push(...path.points);
   return points;
-}
-
-function draw2D(inputShapes, toolpath) {
-  resize2DCanvas();
-  const w = canvas._w;
-  const h = canvas._h;
-  ctx.clearRect(0, 0, w, h);
-  if (!toolpath) return;
-  const bounds = getBounds([...collectPoints(inputShapes), ...collectPoints(toolpath.paths)]);
-  if (!bounds) return;
-  const scale = Math.min((w - 40) / bounds.w, (h - 40) / bounds.h);
-  const cx = (bounds.minX + bounds.maxX) / 2;
-  const cy = (bounds.minY + bounds.maxY) / 2;
-  ctx.save();
-  ctx.translate(w / 2, h / 2);
-  ctx.scale(scale, -scale);
-  ctx.translate(-cx, -cy);
-  ctx.strokeStyle = '#0f3460';
-  ctx.lineWidth = 0.75 / scale;
-  for (const path of inputShapes) {
-    if (path.points.length < 2) continue;
-    ctx.beginPath();
-    ctx.moveTo(path.points[0].x, path.points[0].y);
-    for (let i = 1; i < path.points.length; i++) ctx.lineTo(path.points[i].x, path.points[i].y);
-    if (path.closed) ctx.closePath();
-    ctx.stroke();
-  }
-  ctx.strokeStyle = '#e94560';
-  ctx.lineWidth = 1.5 / scale;
-  for (const path of toolpath.paths) {
-    if (path.points.length < 2) continue;
-    ctx.beginPath();
-    ctx.moveTo(path.points[0].x, path.points[0].y);
-    for (let i = 1; i < path.points.length; i++) ctx.lineTo(path.points[i].x, path.points[i].y);
-    if (path.closed) ctx.closePath();
-    ctx.stroke();
-  }
-  ctx.restore();
 }
 
 function clearGroup(group) {
@@ -445,7 +394,6 @@ async function generateToolpath() {
       currentCamPaths = toolpathToCamPaths(currentToolpath);
     }
     showInfo(currentToolpath);
-    draw2D(shapes, currentToolpath);
     draw3D(shapes, currentToolpath);
     updateViewportInfo(currentToolpath);
     document.getElementById('gcodeContent').textContent = '';
@@ -511,10 +459,8 @@ document.getElementById('saveBtn').addEventListener('click', () => {
 });
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.panel)));
 window.addEventListener('resize', () => {
-  resize2DCanvas();
   resizeThree();
   if (currentToolpath) {
-    draw2D(getShapePaths(), currentToolpath);
     fitCamera(currentToolpath);
   }
 });
@@ -524,7 +470,6 @@ window.addEventListener('beforeunload', () => {
 
 updateOperationUi('cut');
 initThree();
-resize2DCanvas();
 resizeThree();
 animateThree();
 document.getElementById('codeContent').textContent = CODE_EXAMPLES.cut;

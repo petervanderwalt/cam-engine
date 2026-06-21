@@ -62,6 +62,28 @@ function vec2_transformMat3(out, v, m) {
   return out;
 }
 
+function normalizeVec(x, y) {
+  const len = Math.hypot(x, y);
+  if (len <= 1e-12) return { x: 0, y: 0 };
+  return { x: x / len, y: y / len };
+}
+
+function projectPoint(point, origin, axisX, axisY) {
+  const dx = point.X - origin.X;
+  const dy = point.Y - origin.Y;
+  return {
+    x: dx * axisX.x + dy * axisX.y,
+    y: dx * axisY.x + dy * axisY.y
+  };
+}
+
+function unprojectPoint(local, origin, axisX, axisY) {
+  return {
+    X: origin.X + axisX.x * local.x + axisY.x * local.y,
+    Y: origin.Y + axisX.y * local.x + axisY.y * local.y
+  };
+}
+
 export class CamCore {
   constructor(clipper) {
     this.clipper = clipper;
@@ -223,22 +245,37 @@ export class CamCore {
       const p = vec2_transformMat3([], [x, y], m);
       return { X: p[0], Y: p[1] };
     };
-    const scan = [];
+    const allPaths = [];
     for (let y = cy - r; y < cy + r; y += lineDistance * 2) {
-      scan.push(
+      const rect = [
         makePoint(cx - r, y),
         makePoint(cx + r, y),
         makePoint(cx + r, y + lineDistance),
         makePoint(cx - r, y + lineDistance)
-      );
+      ];
+      const clipped = this.clipper.intersection([rect], geometry);
+      if (!clipped.length) continue;
+      const axisX = normalizeVec(rect[1].X - rect[0].X, rect[1].Y - rect[0].Y);
+      const axisY = normalizeVec(rect[3].X - rect[0].X, rect[3].Y - rect[0].Y);
+      for (const poly of clipped) {
+        if (!poly || poly.length < 2) continue;
+        let minX = Infinity, maxX = -Infinity;
+        let minY = Infinity, maxY = -Infinity;
+        for (const point of poly) {
+          const local = projectPoint(point, rect[0], axisX, axisY);
+          if (local.x < minX) minX = local.x;
+          if (local.x > maxX) maxX = local.x;
+          if (local.y < minY) minY = local.y;
+          if (local.y > maxY) maxY = local.y;
+        }
+        if (!(maxX > minX)) continue;
+        const centerY = (minY + maxY) / 2;
+        allPaths.push([
+          unprojectPoint({ x: minX, y: centerY }, rect[0], axisX, axisY),
+          unprojectPoint({ x: maxX, y: centerY }, rect[0], axisX, axisY)
+        ]);
+      }
     }
-    const allPaths = [];
-    const separated = this.separateTabsClipper(scan, geometry);
-    if (separated.length === 1)
-      allPaths.push(separated[0]);
-    else
-      for (let i = 1; i < separated.length; i += 2)
-        allPaths.push(separated[i]);
     return this.mergePaths(null, allPaths);
   }
 
