@@ -29,7 +29,12 @@ const SHAPES = {
 };
 
 const CODE_EXAMPLES = {
-  cut: `const job = await engine.createToolpath({
+  cut: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-cut',
   config: {
@@ -38,37 +43,72 @@ const CODE_EXAMPLES = {
   passDepth: 0.5
   }
 });`,
-  offsetInside: `const job = await engine.createToolpath({
+  offsetInside: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-inside',
   config
 });`,
-  offsetOutside: `const job = await engine.createToolpath({
+  offsetOutside: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-outside',
   config
 });`,
-  pocket: `const job = await engine.createToolpath({
+  pocket: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-pocket',
   config
 });`,
-  raster: `const job = await engine.createToolpath({
+  raster: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-raster-fill',
   config: { ...config, spacing: config.lineDistance }
 });`,
-  laser: `const job = await engine.createToolpath({
+  laser: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'laser-vector',
   config
 });`,
-  laserFill: `const job = await engine.createToolpath({
+  laserFill: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'laser-fill',
   config
 });`,
-  vcarve: `const job = await engine.createToolpath({
+  vcarve: `import { WorkerEngine } from 'cam-engine';
+
+const engine = new WorkerEngine();
+await engine.init();
+
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-vcarve',
   config

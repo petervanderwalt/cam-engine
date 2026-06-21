@@ -140,6 +140,7 @@ Use `WorkerEngine` in browser UIs to keep toolpath generation off the main threa
 import { WorkerEngine } from './index.js';
 
 const engine = new WorkerEngine();
+await engine.init();
 
 const job = await engine.createToolpath({
   source: {
@@ -168,6 +169,69 @@ const job = await engine.createToolpath({
 ```
 
 `WorkerEngine` falls back to the synchronous engine when workers are unavailable or disabled.
+
+## Spinning Up Workers
+
+Browser default:
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine();
+await engine.init();
+```
+
+Browser explicit worker URL:
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine({
+  workerUrl: new URL('./workers/universal-engine.worker.js', import.meta.url)
+});
+
+await engine.init();
+```
+
+Node worker setup:
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine({
+  workerUrl: new URL('./workers/universal-engine.worker.js', import.meta.url)
+});
+
+await engine.init();
+```
+
+Force synchronous fallback:
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine({
+  preferWorker: false
+});
+```
+
+Disable fallback and fail hard if the worker cannot start:
+
+```js
+import { WorkerEngine } from './index.js';
+
+const engine = new WorkerEngine({
+  fallbackToSync: false
+});
+
+await engine.init();
+```
+
+Worker lifecycle:
+
+- Call `await engine.init()` during app startup if you want the worker hot before the first job.
+- Call `await engine.terminate()` when tearing down the app or leaving the page.
+- Pass `ArrayBuffer` and typed-array backed sources directly. They are transferred to the worker when possible.
 
 ## Capability Discovery
 
