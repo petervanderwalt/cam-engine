@@ -65,9 +65,14 @@ async function ensureCamCpp() {
 }
 
 await ensureClipperLib();
-await ensureCamCpp();
 
 const engine = new UniversalEngine();
+
+async function ensureDependenciesForRequest(type, payload) {
+  if (type === 'createToolpath' && payload?.operationId === 'vector-vcarve') {
+    await ensureCamCpp();
+  }
+}
 
 async function getHandlerScope() {
   if (typeof self !== 'undefined' && typeof self.postMessage === 'function') {
@@ -99,6 +104,7 @@ const scope = await getHandlerScope();
 scope.onMessage(async data => {
   const { id, type, payload } = data;
   try {
+    await ensureDependenciesForRequest(type, payload);
     let result;
     if (type === 'describeCapabilities') {
       result = engine.describeCapabilities();
