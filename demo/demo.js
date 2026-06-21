@@ -1,14 +1,13 @@
 import * as THREE from 'https://esm.sh/three@0.160.0';
 import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import * as ClipperModule from 'https://cdn.jsdelivr.net/npm/js-clipper@1.0.1/+esm';
-import { WorkerEngine, UniversalEngine, Path } from '../index.js';
+import { WorkerEngine, Path } from '../index.js';
 import { GCodeWriter } from '../io/GCodeWriter.js';
 import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
 const previewEngine = new WorkerEngine();
-const wasmEngine = new UniversalEngine();
 const clipper = new ClipperAdapter();
 const writer = new GCodeWriter();
 const threeHost = document.getElementById('threeViewport');
@@ -18,66 +17,6 @@ let activeDebugTimer = null;
 let currentCamPaths = [];
 let currentToolpath = null;
 let currentGCode = '';
-let camCppInitPromise = null;
-
-function camCppReady() {
-  return typeof Module !== 'undefined' &&
-    typeof Module._vCarve === 'function' &&
-    typeof Module._separateTabs === 'function';
-}
-
-function ensureCamCppMainThread() {
-  if (camCppReady()) {
-    console.log('[demo] cam-cpp already ready on main thread');
-    return Promise.resolve();
-  }
-  if (camCppInitPromise) {
-    return camCppInitPromise;
-  }
-  console.log('[demo] loading cam-cpp on main thread');
-  const wasmBase = new URL('../dependencies/cam-cpp/', import.meta.url);
-  globalThis.Module = {
-    ...(globalThis.Module || {}),
-    locateFile(path) {
-      return new URL(path, wasmBase).href;
-    }
-  };
-  camCppInitPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-cam-cpp="1"]');
-    const onReady = () => {
-      console.log('[demo] cam-cpp ready on main thread');
-      resolve();
-    };
-    const onFailure = () => reject(new Error('cam-cpp main-thread load failed'));
-    const installReadyHook = () => {
-      if (camCppReady()) {
-        onReady();
-        return;
-      }
-      const prior = globalThis.Module?.onRuntimeInitialized;
-      globalThis.Module.onRuntimeInitialized = function () {
-        if (prior) prior();
-        onReady();
-      };
-    };
-    installReadyHook();
-    if (existing) {
-      existing.addEventListener('error', onFailure, { once: true });
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = new URL('../dependencies/cam-cpp/web-cam-cpp.js', import.meta.url).href;
-    script.async = true;
-    script.dataset.camCpp = '1';
-    script.onerror = onFailure;
-    document.head.appendChild(script);
-  }).catch(error => {
-    camCppInitPromise = null;
-    throw error;
-  });
-  return camCppInitPromise;
-}
-
 function centeredPath(points, closed = true) {
   return new Path(points.map(([x, y]) => ({ x, y, z: 0 })), closed);
 }
@@ -269,9 +208,7 @@ const job = await engine.createToolpath({
 const engine = new WorkerEngine();
 await engine.init();
 
-await ensureCamCppMainThread();
-
-const job = wasmEngine.createToolpath({
+const job = await engine.createToolpath({
   source: { type: 'vector', paths },
   operationId: 'vector-vcarve',
   config
@@ -543,21 +480,11 @@ async function generateToolpath() {
   try {
     const mapped = mapDemoOperation(operationType, config);
     console.log('[demo] mapped operation', mapped);
-    let job;
-    if (mapped.operationId === 'vector-vcarve') {
-      await ensureCamCppMainThread();
-      job = wasmEngine.createToolpath({
-        source: { type: 'vector', paths: shapes },
-        operationId: mapped.operationId,
-        config: mapped.config
-      });
-    } else {
-      job = await previewEngine.createToolpath({
-        source: { type: 'vector', paths: shapes },
-        operationId: mapped.operationId,
-        config: mapped.config
-      });
-    }
+    const job = await previewEngine.createToolpath({
+      source: { type: 'vector', paths: shapes },
+      operationId: mapped.operationId,
+      config: mapped.config
+    });
     console.log('[demo] worker job resolved', {
       operationType: job.result?.operationType,
       ms: Math.round(performance.now() - startedAt),
