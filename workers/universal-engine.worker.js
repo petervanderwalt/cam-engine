@@ -1,17 +1,71 @@
 import { UniversalEngine } from '../core/UniversalEngine.js';
 import { serializeWorkerValue } from '../core/WorkerCodec.js';
 
+function isNodeRuntime() {
+  return typeof process !== 'undefined' && !!process.versions?.node;
+}
+
+async function evalGlobalScript(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to load script: ${response.status}`);
+  }
+  const source = await response.text();
+  globalThis.eval(source);
+}
+
 async function ensureClipperLib() {
   if (typeof ClipperLib !== 'undefined') {
     return;
   }
-  const imported = await import('../dependencies/clipper-lib.cjs');
-  if (typeof ClipperLib === 'undefined' && imported?.default) {
-    globalThis.ClipperLib = imported.default;
+  if (isNodeRuntime()) {
+    const imported = await import('../dependencies/clipper-lib.cjs');
+    if (typeof ClipperLib === 'undefined' && imported?.default) {
+      globalThis.ClipperLib = imported.default;
+    }
+    return;
+  }
+  await evalGlobalScript(new URL('../dependencies/clipper-lib.cjs', import.meta.url));
+  if (typeof ClipperLib === 'undefined') {
+    throw new Error('ClipperLib did not initialize in worker runtime');
   }
 }
 
+async function ensureCamCpp() {
+  if (typeof Module !== 'undefined' && typeof Module._vCarve === 'function' && typeof Module._separateTabs === 'function') {
+    return;
+  }
+  if (isNodeRuntime()) {
+    return;
+  }
+  const wasmBase = new URL('../dependencies/cam-cpp/', import.meta.url);
+  globalThis.Module = {
+    ...(globalThis.Module || {}),
+    locateFile(path) {
+      return new URL(path, wasmBase).href;
+    }
+  };
+  await evalGlobalScript(new URL('../dependencies/cam-cpp/web-cam-cpp.js', import.meta.url));
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('cam-cpp WASM worker init timed out')), 15000);
+    const done = () => {
+      clearTimeout(timeout);
+      resolve();
+    };
+    if (typeof Module !== 'undefined' && typeof Module._vCarve === 'function' && typeof Module._separateTabs === 'function') {
+      done();
+      return;
+    }
+    const prior = globalThis.Module?.onRuntimeInitialized;
+    globalThis.Module.onRuntimeInitialized = function () {
+      if (prior) prior();
+      done();
+    };
+  });
+}
+
 await ensureClipperLib();
+await ensureCamCpp();
 
 const engine = new UniversalEngine();
 
@@ -26,7 +80,7 @@ async function getHandlerScope() {
       }
     };
   }
-  if (typeof process !== 'undefined' && process.versions?.node) {
+  if (isNodeRuntime()) {
     const { parentPort } = await import('worker_threads');
     return {
       onMessage(callback) {
