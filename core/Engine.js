@@ -40,8 +40,8 @@ export class Engine {
     return this.cam.fillPath(geometry, lineDistance, angle);
   }
 
-  vCarve(geometry, cutterAngle, passDepth) {
-    return this.cam.vCarve(geometry, cutterAngle, passDepth);
+  vCarve(geometry, cutterAngle, passDepth, maxDepth) {
+    return this.cam.vCarve(geometry, cutterAngle, passDepth, maxDepth);
   }
 
   reduceCamPaths(camPaths, minDist) {

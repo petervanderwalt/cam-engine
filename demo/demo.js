@@ -234,7 +234,12 @@ const OP_CONFIG = {
   raster: withDepthFields({ lineDistance: { label: 'Line spacing (mm)', default: 0.5, step: 0.1 }, angle: { label: 'Angle (deg)', default: 0, step: 15 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }, { zEnd: -1 }),
   laser: { segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
   laserFill: { lineDistance: { label: 'Line spacing (mm)', default: 0.5, step: 0.1 }, angle: { label: 'Angle (deg)', default: 0, step: 15 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } },
-  vcarve: { cutterAngle: { label: 'Cutter angle (deg)', default: 60, step: 5 }, passDepth: { label: 'Pass depth (mm)', default: 0.5, step: 0.1 }, segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 } }
+  vcarve: {
+    cutterAngle: { label: 'Cutter angle (deg)', default: 60, step: 5 },
+    maxDepth: { label: 'Max depth (mm)', default: 3, step: 0.1 },
+    passDepth: { label: 'Pass depth (mm)', default: 0.5, step: 0.1 },
+    segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 }
+  }
 };
 
 const three = { renderer: null, scene: null, camera: null, controls: null, pathGroup: null, shapeGroup: null };

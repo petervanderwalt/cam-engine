@@ -17,12 +17,16 @@ export class WASMAdapter {
     return camCppReady();
   }
 
-  vCarve(paths, cutterAngle, passDepth, onError) {
+  vCarve(paths, cutterAngle, passDepth, maxDepth, onError) {
     if (!camCppReady()) {
       if (onError) onError('cam-cpp WASM module not loaded - V-Carve unavailable');
       return [];
     }
     if (cutterAngle <= 0 || cutterAngle >= 180) return [];
+    if (!Number.isFinite(maxDepth) || maxDepth <= 0) {
+      if (onError) onError('V-Carve maxDepth must be greater than 0');
+      return [];
+    }
     const clipper = this._clipper;
     const memoryBlocks = [];
     const cGeometry = clipper.clipperPathsToCPaths(memoryBlocks, paths);
@@ -39,6 +43,7 @@ export class WASMAdapter {
       [
         debugArg0, debugArg1, cGeometry[0], cGeometry[1], cGeometry[2],
         cutterAngle, passDepth * clipper.clipperToCppScale,
+        maxDepth * clipper.clipperToCppScale,
         resultPathsRef, resultNumPathsRef, resultPathSizesRef
       ]);
     const result = clipper.cPathsToCamPaths(memoryBlocks, resultPathsRef, resultNumPathsRef, resultPathSizesRef);
