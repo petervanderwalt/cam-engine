@@ -37,18 +37,31 @@ export class WorkerManager {
     return new Promise((resolve, reject) => {
       try {
         console.log('[WorkerManager] starting browser worker', String(workerUrl));
+        let settled = false;
         this.worker = this._workerFactory
           ? this._workerFactory(workerUrl, { type: 'module' })
           : new Worker(workerUrl, { type: 'module' });
-        this.worker.onmessage = (e) => this._handleMessage(e.data);
+        this.worker.onmessage = (e) => {
+          if (e.data?.type === 'ready') {
+            this._ready = true;
+            console.log('[WorkerManager] browser worker handshake complete');
+            if (!settled) {
+              settled = true;
+              resolve();
+            }
+            return;
+          }
+          this._handleMessage(e.data);
+        };
         this.worker.onerror = (e) => {
           console.error('[WorkerManager] browser worker error', e);
           this._rejectAll(e.message);
-          reject(e);
+          if (!settled) {
+            settled = true;
+            reject(e);
+          }
         };
-        this._ready = true;
-        console.log('[WorkerManager] browser worker ready');
-        resolve();
+        console.log('[WorkerManager] waiting for browser worker handshake');
       } catch (e) {
         console.error('[WorkerManager] browser worker init failed', e);
         reject(e);
@@ -60,16 +73,32 @@ export class WorkerManager {
     try {
       const { Worker } = await import('worker_threads');
       console.log('[WorkerManager] starting node worker', String(workerUrl));
-      this.worker = this._workerFactory
-        ? this._workerFactory(workerUrl, { type: 'module' })
-        : new Worker(workerUrl, { type: 'module' });
-      this.worker.on('message', (data) => this._handleMessage(data));
-      this.worker.on('error', (e) => {
-        console.error('[WorkerManager] node worker error', e);
-        this._rejectAll(e.message);
+      await new Promise((resolve, reject) => {
+        let settled = false;
+        this.worker = this._workerFactory
+          ? this._workerFactory(workerUrl, { type: 'module' })
+          : new Worker(workerUrl, { type: 'module' });
+        this.worker.on('message', (data) => {
+          if (data?.type === 'ready') {
+            this._ready = true;
+            console.log('[WorkerManager] node worker handshake complete');
+            if (!settled) {
+              settled = true;
+              resolve();
+            }
+            return;
+          }
+          this._handleMessage(data);
+        });
+        this.worker.on('error', (e) => {
+          console.error('[WorkerManager] node worker error', e);
+          this._rejectAll(e.message);
+          if (!settled) {
+            settled = true;
+            reject(e);
+          }
+        });
       });
-      this._ready = true;
-      console.log('[WorkerManager] node worker ready');
     } catch (e) {
       console.error('[WorkerManager] node worker init failed', e);
       throw new Error('Node.js Worker init failed: ' + e.message);

@@ -116,6 +116,8 @@ async function getHandlerScope() {
 
 const scope = await getHandlerScope();
 console.log('[cam-engine worker] message scope ready');
+scope.postMessage({ type: 'ready' });
+console.log('[cam-engine worker] ready handshake sent');
 
 scope.onMessage(async data => {
   const { id, type, payload } = data;
