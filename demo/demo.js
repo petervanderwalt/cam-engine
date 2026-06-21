@@ -8,8 +8,7 @@ import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
 const DEMO_ASSET_VERSION = '2026-06-21-vcarve-fix-2';
-const DEMO_URL = new URL(window.location.href);
-const CAM_CPP_VARIANT = DEMO_URL.searchParams.get('camCppDebug') === '1' ? 'debug' : 'release';
+const CAM_CPP_VARIANT = 'debug';
 
 const previewEngine = new WorkerEngine({
   workerUrl: new URL(`../workers/universal-engine.worker.js?v=${DEMO_ASSET_VERSION}&camCpp=${CAM_CPP_VARIANT}`, import.meta.url)

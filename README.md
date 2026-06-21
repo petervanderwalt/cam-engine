@@ -309,7 +309,7 @@ The demo now loads browser-only dependencies from CDN:
 
 Debugging native V-carve in the demo:
 
-- Append `?camCppDebug=1` to the demo URL to force the asserted `web-cam-cpp.debug.js/.wasm` pair.
+- The demo now uses the asserted `web-cam-cpp.debug.js/.wasm` pair by default.
 
 Current demo coverage:
 
