@@ -8,6 +8,12 @@ export class ClipperAdapter {
     this.arcTolerance = 10000;
   }
 
+  get heapU32() {
+    if (typeof HEAPU32 !== 'undefined') return HEAPU32;
+    if (typeof Module !== 'undefined' && Module.HEAPU32) return Module.HEAPU32;
+    throw new Error('HEAPU32 not available');
+  }
+
   get C() {
     if (this._lib) return this._lib;
     if (typeof ClipperLib !== 'undefined') {
@@ -130,6 +136,7 @@ export class ClipperAdapter {
 
   clipperPathsToCPaths(memoryBlocks, clipperPaths) {
     if (typeof Module === 'undefined') return [null, 0, null];
+    const heapU32 = this.heapU32;
     const doubleSize = 8;
     const cPaths = Module._malloc(clipperPaths.length * 4);
     memoryBlocks.push(cPaths);
@@ -142,33 +149,34 @@ export class ClipperAdapter {
       let cPath = Module._malloc(clipperPath.length * 2 * doubleSize + 4);
       memoryBlocks.push(cPath);
       if (cPath & 4) cPath += 4;
-      const pathArray = new Float64Array(Module.HEAPU32.buffer, Module.HEAPU32.byteOffset + cPath);
+      const pathArray = new Float64Array(heapU32.buffer, heapU32.byteOffset + cPath);
       for (let j = 0; j < clipperPath.length; ++j) {
         const point = clipperPath[j];
         pathArray[j * 2] = point.X * this.clipperToCppScale;
         pathArray[j * 2 + 1] = point.Y * this.clipperToCppScale;
       }
-      Module.HEAPU32[cPathsBase + i] = cPath;
-      Module.HEAPU32[cPathSizesBase + i] = clipperPath.length;
+      heapU32[cPathsBase + i] = cPath;
+      heapU32[cPathSizesBase + i] = clipperPath.length;
     }
     return [cPaths, clipperPaths.length, cPathSizes];
   }
 
   cPathsToClipperPaths(memoryBlocks, cPathsRef, cNumPathsRef, cPathSizesRef) {
-    const cPaths = Module.HEAPU32[cPathsRef >> 2];
+    const heapU32 = this.heapU32;
+    const cPaths = heapU32[cPathsRef >> 2];
     memoryBlocks.push(cPaths);
     const cPathsBase = cPaths >> 2;
-    const cNumPaths = Module.HEAPU32[cNumPathsRef >> 2];
-    const cPathSizes = Module.HEAPU32[cPathSizesRef >> 2];
+    const cNumPaths = heapU32[cNumPathsRef >> 2];
+    const cPathSizes = heapU32[cPathSizesRef >> 2];
     memoryBlocks.push(cPathSizes);
     const cPathSizesBase = cPathSizes >> 2;
     const clipperPaths = [];
     for (let i = 0; i < cNumPaths; ++i) {
-      const pathSize = Module.HEAPU32[cPathSizesBase + i];
-      let cPath = Module.HEAPU32[cPathsBase + i];
+      const pathSize = heapU32[cPathSizesBase + i];
+      let cPath = heapU32[cPathsBase + i];
       memoryBlocks.push(cPath);
       if (cPath & 4) cPath += 4;
-      const pathArray = new Float64Array(Module.HEAPU32.buffer, Module.HEAPU32.byteOffset + cPath);
+      const pathArray = new Float64Array(heapU32.buffer, heapU32.byteOffset + cPath);
       const clipperPath = [];
       clipperPaths.push(clipperPath);
       for (let j = 0; j < pathSize; ++j)
@@ -181,20 +189,21 @@ export class ClipperAdapter {
   }
 
   cPathsToCamPaths(memoryBlocks, cPathsRef, cNumPathsRef, cPathSizesRef) {
-    const cPaths = Module.HEAPU32[cPathsRef >> 2];
+    const heapU32 = this.heapU32;
+    const cPaths = heapU32[cPathsRef >> 2];
     memoryBlocks.push(cPaths);
     const cPathsBase = cPaths >> 2;
-    const cNumPaths = Module.HEAPU32[cNumPathsRef >> 2];
-    const cPathSizes = Module.HEAPU32[cPathSizesRef >> 2];
+    const cNumPaths = heapU32[cNumPathsRef >> 2];
+    const cPathSizes = heapU32[cPathSizesRef >> 2];
     memoryBlocks.push(cPathSizes);
     const cPathSizesBase = cPathSizes >> 2;
     const convertedPaths = [];
     for (let i = 0; i < cNumPaths; ++i) {
-      const pathSize = Module.HEAPU32[cPathSizesBase + i];
-      let cPath = Module.HEAPU32[cPathsBase + i];
+      const pathSize = heapU32[cPathSizesBase + i];
+      let cPath = heapU32[cPathsBase + i];
       memoryBlocks.push(cPath);
       if (cPath & 4) cPath += 4;
-      const pathArray = new Float64Array(Module.HEAPU32.buffer, Module.HEAPU32.byteOffset + cPath);
+      const pathArray = new Float64Array(heapU32.buffer, heapU32.byteOffset + cPath);
       const convertedPath = [];
       convertedPaths.push({ path: convertedPath, safeToClose: false });
       for (let j = 0; j < pathSize; ++j)
