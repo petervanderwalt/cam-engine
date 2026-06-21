@@ -58,7 +58,12 @@ async function ensureClipperLib() {
 }
 
 async function ensureCamCpp() {
-  if (typeof Module !== 'undefined' && typeof Module._vCarve === 'function' && typeof Module._separateTabs === 'function') {
+  if (
+    typeof Module !== 'undefined' &&
+    typeof Module._vCarve === 'function' &&
+    typeof Module._separateTabs === 'function' &&
+    Module.calledRun
+  ) {
     console.log('[cam-engine worker] cam-cpp already ready');
     return;
   }
@@ -87,7 +92,12 @@ async function ensureCamCpp() {
       console.log('[cam-engine worker] cam-cpp ready');
       resolve();
     };
-    if (typeof Module !== 'undefined' && typeof Module._vCarve === 'function' && typeof Module._separateTabs === 'function') {
+    if (
+      typeof Module !== 'undefined' &&
+      typeof Module._vCarve === 'function' &&
+      typeof Module._separateTabs === 'function' &&
+      Module.calledRun
+    ) {
       done();
       return;
     }
