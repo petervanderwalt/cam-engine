@@ -47,8 +47,6 @@ export class WASMAdapter {
         resultPathsRef, resultNumPathsRef, resultPathSizesRef
       ]);
     const result = clipper.cPathsToCamPaths(memoryBlocks, resultPathsRef, resultNumPathsRef, resultPathSizesRef);
-    for (let i = 0; i < memoryBlocks.length; ++i)
-      Module._free(memoryBlocks[i]);
     return result;
   }
 
