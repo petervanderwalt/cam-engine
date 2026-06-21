@@ -64,18 +64,25 @@ Use `traceBitmapToVectorSource(...)`, then run normal vector operations on the r
 
 ```mermaid
 flowchart TD
-  A["Input Source"] --> B{"Source Type"}
-  B -->|Vector| C["Vector Paths"]
-  B -->|Bitmap| D["Bitmap Adapter / Trace"]
-  B -->|Mesh| E["Mesh Slicer / Projection"]
-  C --> F["OperationRegistry"]
-  D --> F
-  E --> F
-  F --> G["Operation"]
-  G --> H["Toolpath"]
-  H --> I["Preview / Demo"]
-  H --> J["Tests / Validation"]
-  H --> K["Validation / Export Layer"]
+  A["App / Demo"] --> B{"Engine Entry"}
+  B -->|Sync| C["UniversalEngine"]
+  B -->|Async| D["WorkerEngine"]
+  D --> E["WorkerManager"]
+  E --> F["universal-engine.worker.js"]
+  F --> C
+  S["Input Source"] --> T{"Source Type"}
+  T -->|Vector| U["Paths / Geometry"]
+  T -->|Bitmap| V["Bitmap Data / Trace"]
+  T -->|Mesh| W["STL / Mesh Data"]
+  U --> X["OperationRegistry"]
+  V --> X
+  W --> X
+  C --> X
+  X --> Y["Operation"]
+  Y --> Z["Toolpath"]
+  Z --> P["Preview / Demo"]
+  Z --> Q["Tests / Validation"]
+  Z --> R["Optional Export Layer"]
 ```
 
 ## API
