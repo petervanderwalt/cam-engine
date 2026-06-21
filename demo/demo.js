@@ -18,13 +18,115 @@ let currentCamPaths = [];
 let currentToolpath = null;
 let currentGCode = '';
 
+function centeredPath(points, closed = true) {
+  return new Path(points.map(([x, y]) => ({ x, y, z: 0 })), closed);
+}
+
+function rectPoints(x1, y1, x2, y2) {
+  return [
+    [x1, y1],
+    [x2, y1],
+    [x2, y2],
+    [x1, y2]
+  ];
+}
+
+function polyPoints(points) {
+  return points.map(([x, y]) => [x, y]);
+}
+
+function textOutlineShape() {
+  const letters = [];
+  const glyphs = {
+    C: [
+      rectPoints(0, 0, 1, 6),
+      rectPoints(0, 5, 4, 6),
+      rectPoints(0, 0, 4, 1)
+    ],
+    A: [
+      polyPoints([[0, 0], [1, 0], [2, 5], [3, 0], [4, 0], [2.8, 6], [1.2, 6]]),
+      rectPoints(1.1, 2.4, 2.9, 3.2)
+    ],
+    M: [
+      polyPoints([[0, 0], [1, 0], [1, 4.2], [2, 2.5], [3, 4.2], [3, 0], [4, 0], [4, 6], [3, 6], [2, 4.1], [1, 6], [0, 6]])
+    ],
+    E: [
+      rectPoints(0, 0, 1, 6),
+      rectPoints(0, 5, 4, 6),
+      rectPoints(0, 2.5, 3.2, 3.5),
+      rectPoints(0, 0, 4, 1)
+    ],
+    N: [
+      polyPoints([[0, 0], [1, 0], [3, 4.2], [3, 0], [4, 0], [4, 6], [3, 6], [1, 1.8], [1, 6], [0, 6]])
+    ],
+    G: [
+      rectPoints(0, 0, 1, 6),
+      rectPoints(0, 5, 4.2, 6),
+      rectPoints(0, 0, 4.2, 1),
+      rectPoints(3.2, 0, 4.2, 3.2),
+      rectPoints(2.1, 2.2, 4.2, 3.2)
+    ],
+    I: [
+      rectPoints(0, 5, 4, 6),
+      rectPoints(1.5, 0, 2.5, 6),
+      rectPoints(0, 0, 4, 1)
+    ],
+    e: [
+      rectPoints(0, 1, 1, 5),
+      rectPoints(0, 4, 3.8, 5),
+      rectPoints(0, 2, 3.2, 3),
+      rectPoints(0, 1, 3.8, 2),
+      rectPoints(2.8, 1, 3.8, 3)
+    ],
+    n: [
+      rectPoints(0, 1, 1, 5),
+      rectPoints(2.8, 1, 3.8, 5),
+      rectPoints(0, 4, 3.8, 5),
+      rectPoints(1.4, 1, 2.4, 5)
+    ],
+    g: [
+      rectPoints(0, 1, 1, 5),
+      rectPoints(0, 4, 3.8, 5),
+      rectPoints(2.8, -1.5, 3.8, 5),
+      rectPoints(0, 1, 3.8, 2),
+      rectPoints(1.4, -1.5, 3.8, -0.5)
+    ],
+    i: [
+      rectPoints(1.4, 1, 2.4, 5),
+      rectPoints(1.4, 5.6, 2.4, 6.6)
+    ]
+  };
+  const text = 'CAMEngine';
+  let x = 0;
+  for (const ch of text) {
+    const glyph = glyphs[ch];
+    if (!glyph) continue;
+    for (const contour of glyph) {
+      letters.push(centeredPath(contour.map(([px, py]) => [px + x, py]), true));
+    }
+    x += ch === ch.toUpperCase() ? 5.2 : 4.6;
+  }
+  const allPoints = letters.flatMap(path => path.points);
+  const bounds = getBounds(allPoints);
+  const cx = (bounds.minX + bounds.maxX) / 2;
+  const cy = (bounds.minY + bounds.maxY) / 2;
+  for (const path of letters) {
+    for (const point of path.points) {
+      point.x = (point.x - cx) * 2.2;
+      point.y = (point.y - cy) * 2.2;
+    }
+  }
+  return letters;
+}
+
 const SHAPES = {
   square: () => [new Path([{ x: -25, y: -25, z: 0 }, { x: 25, y: -25, z: 0 }, { x: 25, y: 25, z: 0 }, { x: -25, y: 25, z: 0 }], true)],
   circle: () => { const pts = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2; pts.push({ x: 25 * Math.cos(a), y: 25 * Math.sin(a), z: 0 }); } return [new Path(pts, true)]; },
   star: () => { const pts = []; for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2; const r = i % 2 === 0 ? 25 : 10; pts.push({ x: r * Math.cos(a), y: r * Math.sin(a), z: 0 }); } return [new Path(pts, true)]; },
   rectangle: () => [new Path([{ x: -40, y: -20, z: 0 }, { x: 40, y: -20, z: 0 }, { x: 40, y: 20, z: 0 }, { x: -40, y: 20, z: 0 }], true)],
   ring: () => { const outer = []; const inner = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2; outer.push({ x: 25 * Math.cos(a), y: 25 * Math.sin(a), z: 0 }); inner.push({ x: 12 * Math.cos(-a), y: 12 * Math.sin(-a), z: 0 }); } return [new Path(outer, true), new Path(inner, true)]; },
-  cross: () => [new Path([{ x: -5, y: -25, z: 0 }, { x: 5, y: -25, z: 0 }, { x: 5, y: -5, z: 0 }, { x: 25, y: -5, z: 0 }, { x: 25, y: 5, z: 0 }, { x: 5, y: 5, z: 0 }, { x: 5, y: 25, z: 0 }, { x: -5, y: 25, z: 0 }, { x: -5, y: 5, z: 0 }, { x: -25, y: 5, z: 0 }, { x: -25, y: -5, z: 0 }, { x: -5, y: -5, z: 0 }], true)]
+  cross: () => [new Path([{ x: -5, y: -25, z: 0 }, { x: 5, y: -25, z: 0 }, { x: 5, y: -5, z: 0 }, { x: 25, y: -5, z: 0 }, { x: 25, y: 5, z: 0 }, { x: 5, y: 5, z: 0 }, { x: 5, y: 25, z: 0 }, { x: -5, y: 25, z: 0 }, { x: -5, y: 5, z: 0 }, { x: -25, y: 5, z: 0 }, { x: -25, y: -5, z: 0 }, { x: -5, y: -5, z: 0 }], true)],
+  camengineText: () => textOutlineShape()
 };
 
 const CODE_EXAMPLES = {
