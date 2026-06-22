@@ -29,7 +29,7 @@ function toToolpathFromCamPaths(camPaths, operationType, config, scale = 1 / 100
     const points = camPath.path.map(point => ({
       x: point.X * scale,
       y: point.Y * scale,
-      z: point.Z || 0
+      z: (point.Z || 0) * scale
     }));
     toolpath.addPath(new Path(points, !!camPath.safeToClose), 0);
   }
@@ -273,7 +273,8 @@ export class OperationRegistry {
           toToolpathFromCamPaths(
             this.vCarveOperation.generate(vectorSource(source), config),
             'vector-vcarve',
-            config
+            config,
+            1 / this.vCarveOperation.clipper.mmToClipperScale
           )
       },
       {

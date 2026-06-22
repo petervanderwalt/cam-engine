@@ -293,6 +293,8 @@ When a path segment passes near a tab coordinate, Z is raised across that tab sp
 
 ## Demo
 
+![Demo screenshot](./demo/demo.png)
+
 Demo entry:
 
 - [demo/index.html](./demo/index.html)

@@ -7,7 +7,7 @@ import { ClipperAdapter } from '../adapters/ClipperAdapter.js';
 
 globalThis.ClipperLib = ClipperModule.default || ClipperModule.ClipperLib || ClipperModule;
 
-const DEMO_ASSET_VERSION = '2026-06-21-vcarve-fix-2';
+const DEMO_ASSET_VERSION = '2026-06-22-svg-paths';
 const CAM_CPP_VARIANT = 'debug';
 
 const previewEngine = new WorkerEngine({
@@ -22,105 +22,75 @@ let activeDebugTimer = null;
 let currentCamPaths = [];
 let currentToolpath = null;
 let currentGCode = '';
-function centeredPath(points, closed = true) {
-  return new Path(points.map(([x, y]) => ({ x, y, z: 0 })), closed);
-}
 
-function rectPoints(x1, y1, x2, y2) {
-  return [
-    [x1, y1],
-    [x2, y1],
-    [x2, y2],
-    [x1, y2]
-  ];
-}
+let loadedSvgPaths = null;
+let loadedSvgName = null;
 
-function polyPoints(points) {
-  return points.map(([x, y]) => [x, y]);
-}
-
-function textOutlineShape() {
-  const letters = [];
-  const glyphs = {
-    C: [
-      rectPoints(0, 0, 1, 6),
-      rectPoints(0, 5, 4, 6),
-      rectPoints(0, 0, 4, 1)
-    ],
-    A: [
-      polyPoints([[0, 0], [1, 0], [2, 5], [3, 0], [4, 0], [2.8, 6], [1.2, 6]]),
-      rectPoints(1.1, 2.4, 2.9, 3.2)
-    ],
-    M: [
-      polyPoints([[0, 0], [1, 0], [1, 4.2], [2, 2.5], [3, 4.2], [3, 0], [4, 0], [4, 6], [3, 6], [2, 4.1], [1, 6], [0, 6]])
-    ],
-    E: [
-      rectPoints(0, 0, 1, 6),
-      rectPoints(0, 5, 4, 6),
-      rectPoints(0, 2.5, 3.2, 3.5),
-      rectPoints(0, 0, 4, 1)
-    ],
-    N: [
-      polyPoints([[0, 0], [1, 0], [3, 4.2], [3, 0], [4, 0], [4, 6], [3, 6], [1, 1.8], [1, 6], [0, 6]])
-    ],
-    G: [
-      rectPoints(0, 0, 1, 6),
-      rectPoints(0, 5, 4.2, 6),
-      rectPoints(0, 0, 4.2, 1),
-      rectPoints(3.2, 0, 4.2, 3.2),
-      rectPoints(2.1, 2.2, 4.2, 3.2)
-    ],
-    I: [
-      rectPoints(0, 5, 4, 6),
-      rectPoints(1.5, 0, 2.5, 6),
-      rectPoints(0, 0, 4, 1)
-    ],
-    e: [
-      rectPoints(0, 1, 1, 5),
-      rectPoints(0, 4, 3.8, 5),
-      rectPoints(0, 2, 3.2, 3),
-      rectPoints(0, 1, 3.8, 2),
-      rectPoints(2.8, 1, 3.8, 3)
-    ],
-    n: [
-      rectPoints(0, 1, 1, 5),
-      rectPoints(2.8, 1, 3.8, 5),
-      rectPoints(0, 4, 3.8, 5),
-      rectPoints(1.4, 1, 2.4, 5)
-    ],
-    g: [
-      rectPoints(0, 1, 1, 5),
-      rectPoints(0, 4, 3.8, 5),
-      rectPoints(2.8, -1.5, 3.8, 5),
-      rectPoints(0, 1, 3.8, 2),
-      rectPoints(1.4, -1.5, 3.8, -0.5)
-    ],
-    i: [
-      rectPoints(1.4, 1, 2.4, 5),
-      rectPoints(1.4, 5.6, 2.4, 6.6)
-    ]
-  };
-  const text = 'CAMEngine';
-  let x = 0;
-  for (const ch of text) {
-    const glyph = glyphs[ch];
-    if (!glyph) continue;
-    for (const contour of glyph) {
-      letters.push(centeredPath(contour.map(([px, py]) => [px + x, py]), true));
+function parseSvgPaths(svgText) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgText, 'image/svg+xml');
+  const ns = 'http://www.w3.org/2000/svg';
+  const tempSvg = document.createElementNS(ns, 'svg');
+  const viewBox = (doc.documentElement.getAttribute('viewBox') || '').split(/\s+/).map(Number);
+  if (viewBox.length === 4) tempSvg.setAttribute('viewBox', viewBox.join(' '));
+  const result = [];
+  const step = 0.5;
+  for (const el of doc.querySelectorAll('path')) {
+    const d = el.getAttribute('d');
+    if (!d) continue;
+    const pathEl = document.createElementNS(ns, 'path');
+    pathEl.setAttribute('d', d);
+    tempSvg.appendChild(pathEl);
+    const length = pathEl.getTotalLength();
+    if (length <= 0) { tempSvg.removeChild(pathEl); continue; }
+    const pts = [];
+    for (let t = 0; t <= length; t += step) {
+      const p = pathEl.getPointAtLength(t);
+      pts.push({ x: p.x, y: -p.y, z: 0 });
     }
-    x += ch === ch.toUpperCase() ? 5.2 : 4.6;
-  }
-  const allPoints = letters.flatMap(path => path.points);
-  const bounds = getBounds(allPoints);
-  const cx = (bounds.minX + bounds.maxX) / 2;
-  const cy = (bounds.minY + bounds.maxY) / 2;
-  for (const path of letters) {
-    for (const point of path.points) {
-      point.x = (point.x - cx) * 2.2;
-      point.y = (point.y - cy) * 2.2;
+    tempSvg.removeChild(pathEl);
+    const end = pathEl.getPointAtLength(length);
+    const last = pts[pts.length - 1];
+    if (Math.hypot(end.x - last.x, end.y - (-end.y)) > 0.01) pts.push({ x: end.x, y: -end.y, z: 0 });
+    const subPaths = [];
+    let start = 0;
+    const jump = step * 5;
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y) > jump) {
+        if (i - start > 1) subPaths.push({ pts: pts.slice(start, i), closed: true });
+        start = i;
+      }
     }
+    if (pts.length - start > 1) subPaths.push({ pts: pts.slice(start), closed: true });
+    for (const sp of subPaths) result.push(new Path(sp.pts, sp.closed));
   }
-  return letters;
+  return result;
+}
+
+function centerAndScalePaths(paths, targetSize = 100) {
+  const allPoints = paths.flatMap(p => p.points);
+  if (!allPoints.length) return paths;
+  const b = getBounds(allPoints);
+  const cx = (b.minX + b.maxX) / 2;
+  const cy = (b.minY + b.maxY) / 2;
+  const scale = targetSize / Math.max(b.w, b.h, 1);
+  for (const path of paths)
+    for (const pt of path.points) { pt.x = (pt.x - cx) * scale; pt.y = (pt.y - cy) * scale; }
+  return paths;
+}
+
+async function loadBundledSvg() {
+  const url = new URL('camengine-text-shape.svg', import.meta.url);
+  const res = await fetch(url);
+  loadedSvgName = 'CAMEngine Text';
+  loadedSvgPaths = centerAndScalePaths(parseSvgPaths(await res.text()));
+  return loadedSvgPaths;
+}
+
+async function loadSvgFromFile(file) {
+  loadedSvgName = file.name;
+  loadedSvgPaths = centerAndScalePaths(parseSvgPaths(await file.text()));
+  return loadedSvgPaths;
 }
 
 const SHAPES = {
@@ -130,7 +100,7 @@ const SHAPES = {
   rectangle: () => [new Path([{ x: -40, y: -20, z: 0 }, { x: 40, y: -20, z: 0 }, { x: 40, y: 20, z: 0 }, { x: -40, y: 20, z: 0 }], true)],
   ring: () => { const outer = []; const inner = []; for (let i = 0; i <= 64; i++) { const a = i / 64 * Math.PI * 2; outer.push({ x: 25 * Math.cos(a), y: 25 * Math.sin(a), z: 0 }); inner.push({ x: 12 * Math.cos(-a), y: 12 * Math.sin(-a), z: 0 }); } return [new Path(outer, true), new Path(inner, true)]; },
   cross: () => [new Path([{ x: -5, y: -25, z: 0 }, { x: 5, y: -25, z: 0 }, { x: 5, y: -5, z: 0 }, { x: 25, y: -5, z: 0 }, { x: 25, y: 5, z: 0 }, { x: 5, y: 5, z: 0 }, { x: 5, y: 25, z: 0 }, { x: -5, y: 25, z: 0 }, { x: -5, y: 5, z: 0 }, { x: -25, y: 5, z: 0 }, { x: -25, y: -5, z: 0 }, { x: -5, y: -5, z: 0 }], true)],
-  camengineText: () => textOutlineShape()
+  camengineText: () => loadedSvgPaths ? loadedSvgPaths.map(p => new Path(p.points.map(pt => ({ x: pt.x, y: pt.y, z: 0 })), p.closed)) : []
 };
 
 const CODE_EXAMPLES = {
@@ -242,7 +212,7 @@ const OP_CONFIG = {
   vcarve: {
     cutterAngle: { label: 'Cutter angle (deg)', default: 60, step: 5 },
     maxDepth: { label: 'Max depth (mm)', default: 3, step: 0.1 },
-    passDepth: { label: 'Pass depth (mm)', default: 0.5, step: 0.1 },
+    passDepth: { label: 'Pass depth (mm)', default: 0, step: 0.1 },
     segmentLength: { label: 'Segment (mm)', default: 0.1, step: 0.01 }
   }
 };
@@ -255,15 +225,16 @@ function initThree() {
   three.renderer.setClearColor(0x0d0d1a, 1);
   threeHost.appendChild(three.renderer.domElement);
   three.scene = new THREE.Scene();
-  three.camera = new THREE.PerspectiveCamera(45, 1, 0.1, 5000);
-  three.camera.up.set(0, 0, 1);
-  three.camera.position.set(100, -120, 90);
+  const rect = threeHost.getBoundingClientRect();
+  const aspect = rect.width / Math.max(rect.height, 1);
+  three.camera = new THREE.OrthographicCamera(-60 * aspect, 60 * aspect, 60, -60, 0.1, 5000);
+  three.camera.position.set(0, 0, 200);
   three.controls = new OrbitControls(three.camera, three.renderer.domElement);
   three.controls.enableDamping = true;
   three.controls.target.set(0, 0, 0);
   three.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
   const light = new THREE.DirectionalLight(0xffffff, 0.8);
-  light.position.set(120, -80, 160);
+  light.position.set(0, 0, 200);
   three.scene.add(light);
   const grid = new THREE.GridHelper(220, 22, 0x335577, 0x1a2e48);
   grid.rotation.x = Math.PI / 2;
@@ -289,7 +260,48 @@ function resizeThree() {
 }
 
 function getShapePaths() {
-  return SHAPES[document.getElementById('shapeSelect').value]();
+  const key = document.getElementById('shapeSelect').value;
+  if (key === 'camengineText' && loadedSvgPaths) {
+    return loadedSvgPaths.map(p => new Path(p.points.map(pt => ({ x: pt.x, y: pt.y, z: 0 })), p.closed));
+  }
+  return SHAPES[key]();
+}
+
+function drawShapePreview(paths) {
+  clearGroup(three.shapeGroup);
+  clearGroup(three.pathGroup);
+  const color = 0x4488ff;
+  const positions = [];
+  for (const path of paths) {
+    for (let i = 0; i < path.points.length; i++) {
+      const a = path.points[i];
+      const b = path.points[(i + 1) % path.points.length];
+      if (!path.closed && i === path.points.length - 1) break;
+      positions.push(a.x, a.y, 0, b.x, b.y, 0);
+    }
+  }
+  if (!positions.length) return;
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const mat = new THREE.LineBasicMaterial({ color, depthTest: false });
+  const lines = new THREE.LineSegments(geom, mat);
+  three.scene.add(lines);
+  const bounds = getBounds(paths.flatMap(p => p.points));
+  if (bounds) {
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    const radius = Math.max(bounds.w, bounds.h, 20);
+    const aspect = three.camera.right / three.camera.top;
+    three.controls.target.set(cx, cy, 0);
+    three.camera.left = -radius * aspect;
+    three.camera.right = radius * aspect;
+    three.camera.top = radius;
+    three.camera.bottom = -radius;
+    three.camera.position.set(cx, cy, radius * 5);
+    three.camera.far = Math.max(5000, radius * 20);
+    three.camera.updateProjectionMatrix();
+  }
+  three.renderer.render(three.scene, three.camera);
 }
 
 function buildConfig() {
@@ -373,7 +385,10 @@ function getBounds(points) {
 
 function collectPoints(paths) {
   const points = [];
-  for (const path of paths) points.push(...path.points);
+  for (const path of paths) {
+    if (!path?.points?.length) continue;
+    for (const point of path.points) points.push(point);
+  }
   return points;
 }
 
@@ -400,21 +415,20 @@ function fitCamera(toolpath) {
   const cy = (bounds.minY + bounds.maxY) / 2;
   const cz = (bounds.minZ + bounds.maxZ) / 2;
   const radius = Math.max(bounds.w, bounds.h, bounds.d, 20);
+  const aspect = three.camera.right / three.camera.top;
   three.controls.target.set(cx, cy, cz);
-  three.camera.position.set(cx + radius * 1.25, cy - radius * 1.4, cz + radius * 1.1);
+  three.camera.left = -radius * aspect;
+  three.camera.right = radius * aspect;
+  three.camera.top = radius;
+  three.camera.bottom = -radius;
+  three.camera.position.set(cx, cy, radius * 5);
   three.camera.far = Math.max(5000, radius * 20);
   three.camera.updateProjectionMatrix();
 }
 
-function draw3D(inputShapes, toolpath) {
-  clearGroup(three.shapeGroup);
+function draw3D(toolpath, shapes) {
   clearGroup(three.pathGroup);
   if (!toolpath) return;
-  for (const path of inputShapes) {
-    const points = path.points.map(point => ({ x: point.x, y: point.y, z: 0 }));
-    if (path.closed && points.length) points.push({ ...points[0] });
-    three.shapeGroup.add(makeLine(points, 0x2f7cb7));
-  }
   const palette = [0xff5a5f, 0xff9248, 0xffc857, 0x8ce99a];
   let index = 0;
   for (const path of toolpath.paths) {
@@ -505,7 +519,7 @@ async function generateToolpath() {
       currentCamPaths = toolpathToCamPaths(currentToolpath);
     }
     showInfo(currentToolpath);
-    draw3D(shapes, currentToolpath);
+    draw3D(currentToolpath, shapes);
     updateViewportInfo(currentToolpath);
     document.getElementById('gcodeContent').textContent = '';
   } catch (error) {
@@ -568,6 +582,23 @@ document.getElementById('saveBtn').addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
 });
+document.getElementById('shapeSelect').addEventListener('change', () => {
+  if (document.getElementById('shapeSelect').value === 'camengineText' && loadedSvgPaths) {
+    drawShapePreview(loadedSvgPaths);
+  } else {
+    drawShapePreview(getShapePaths());
+  }
+});
+document.getElementById('svgFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  await loadSvgFromFile(file);
+  document.getElementById('shapeSelect').value = 'camengineText';
+  drawShapePreview(loadedSvgPaths);
+});
+document.getElementById('loadSvgBtn').addEventListener('click', () => {
+  document.getElementById('svgFileInput').click();
+});
 document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.panel)));
 window.addEventListener('resize', () => {
   resizeThree();
@@ -584,3 +615,7 @@ initThree();
 resizeThree();
 animateThree();
 document.getElementById('codeContent').textContent = CODE_EXAMPLES.cut;
+loadBundledSvg().then(() => {
+  document.getElementById('shapeSelect').value = 'camengineText';
+  drawShapePreview(loadedSvgPaths);
+});

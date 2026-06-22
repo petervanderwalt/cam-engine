@@ -77,7 +77,8 @@ export class OperationConfig {
         unit: 'mm' },
       maxDepth: { type: 'number', default: 3, label: 'Max depth',
         unit: 'mm' },
-      zStep: { type: 'number', default: 0.5, label: 'Z step', unit: 'mm' },
+      passDepth: { type: 'number', default: 0, label: 'Pass depth',
+        unit: 'mm' },
       flatAreaClear: { type: 'boolean', default: true,
         label: 'Clear flat areas' }
     },

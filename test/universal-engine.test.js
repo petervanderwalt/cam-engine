@@ -50,6 +50,31 @@ test('UniversalEngine: vector cut supports built-in multi-pass depth', () => {
   assert.equal(job.result.bounds.minZ, -2);
 });
 
+test('UniversalEngine: vector vcarve normalizes clipper-scale output to mm', () => {
+  const engine = new UniversalEngine();
+  const scale = engine.registry.vCarveOperation.clipper.mmToClipperScale;
+  engine.registry.vCarveOperation.generate = () => ([
+    {
+      safeToClose: false,
+      path: [
+        { X: 0, Y: 0, Z: 0 },
+        { X: 10 * scale, Y: 0, Z: -1 * scale },
+        { X: 10 * scale, Y: 10 * scale, Z: -1 * scale }
+      ]
+    }
+  ]);
+  const job = engine.createToolpath({
+    source: { type: 'vector', paths: square(10) },
+    operationId: 'vector-vcarve',
+    config: { cutterAngle: 60, passDepth: 0.5, maxDepth: 1 }
+  });
+  assert.equal(job.result.operationType, 'vector-vcarve');
+  assert.equal(job.result.paths.length, 1);
+  assert.equal(job.result.paths[0].points[1].x, 10);
+  assert.equal(job.result.paths[0].points[2].y, 10);
+  assert.equal(job.result.paths[0].points[1].z, -1);
+});
+
 test('UniversalEngine: describes STL mesh sources', () => {
   const engine = new UniversalEngine();
   const buffer = new ArrayBuffer(84);

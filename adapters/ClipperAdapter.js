@@ -4,6 +4,7 @@ export class ClipperAdapter {
     this.inchToClipperScale = 1270000000;
     this.mmToClipperScale = 1270000000 / 25.4;
     this.clipperToCppScale = 1 / 128;
+    this.mmToCppScale = this.mmToClipperScale * this.clipperToCppScale;
     this.cleanPolyDist = 100;
     this.arcTolerance = 10000;
   }
