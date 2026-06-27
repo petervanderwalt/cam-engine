@@ -15,35 +15,44 @@
   </header>
   <div id="layout">
     <nav id="sidebar">
-      <section>
-        <h2>Shape</h2>
-        <div class="form-group">
-          <select id="shapeSelect">
-            <option value="square">Square 50mm</option>
-            <option value="circle">Circle 50mm</option>
-            <option value="star">Star 50mm</option>
-            <option value="rectangle">Rectangle 80x40mm</option>
-            <option value="ring">Ring</option>
-            <option value="cross">Cross</option>
-            <option value="camengineText">CAMEngine Text</option>
-          </select>
+      <section id="sourceSection">
+        <h2 id="sourceTitle">Source</h2>
+        <div id="vectorSource" class="source-group">
+          <div class="form-group">
+            <select id="shapeSelect">
+              <option value="square">Square 50mm</option>
+              <option value="circle">Circle 50mm</option>
+              <option value="star">Star 50mm</option>
+              <option value="rectangle">Rectangle 80x40mm</option>
+              <option value="ring">Ring</option>
+              <option value="cross">Cross</option>
+              <option value="camengineText">CAMEngine Text</option>
+            </select>
+          </div>
+          <button id="loadSvgBtn" class="btn-small" style="width:100%;margin-top:6px">Open SVG Paths…</button>
+          <input type="file" id="svgFileInput" accept=".svg" style="display:none">
         </div>
-        <button id="loadSvgBtn" class="btn-small" style="width:100%;margin-top:6px">Open SVG Paths…</button>
-        <input type="file" id="svgFileInput" accept=".svg" style="display:none">
+        <div id="bitmapSource" class="source-group" style="display:none">
+          <button id="loadImgBtn" class="btn-small" style="width:100%">Open Image…</button>
+          <input type="file" id="imgFileInput" accept="image/*" style="display:none">
+        </div>
+        <div id="meshSource" class="source-group" style="display:none">
+          <button id="loadStlBtn" class="btn-small" style="width:100%">Open STL…</button>
+          <input type="file" id="stlFileInput" accept=".stl" style="display:none">
+          <button id="resizeMeshBtn" class="btn-small" style="width:100%;margin-top:6px">Resize Mesh…</button>
+        </div>
       </section>
       <section>
+        <div class="cat-tabs">
+          <button class="cat-tab active" data-cat="vector">Vector</button>
+          <button class="cat-tab" data-cat="laser">Laser</button>
+          <button class="cat-tab" data-cat="dragKnife">Drag</button>
+          <button class="cat-tab" data-cat="bitmap">Bitmap</button>
+          <button class="cat-tab" data-cat="mesh">3D</button>
+        </div>
         <h2>Operation</h2>
         <div class="form-group">
-          <select id="operationSelect">
-            <option value="cut">Vector Cut</option>
-            <option value="offsetInside">Vector Inside Offset</option>
-            <option value="offsetOutside">Vector Outside Offset</option>
-            <option value="pocket">Pocket</option>
-            <option value="raster">Raster Fill</option>
-            <option value="laser">Laser Cut</option>
-            <option value="laserFill">Laser Fill</option>
-            <option value="vcarve">V-Carve</option>
-          </select>
+          <select id="operationSelect"></select>
         </div>
         <div id="configPanel"></div>
         <button id="generateBtn" class="btn-primary">Generate toolpath</button>
@@ -90,6 +99,35 @@
         </div>
       </div>
     </main>
+  </div>
+</div>
+<!-- Resize Modal -->
+<div id="resizeModal" class="modal-overlay" style="display:none">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;color:#111827;">Resize Mesh</h3>
+      <div class="form-group">
+        <label>Width (X)</label>
+        <input type="number" id="resizeW" step="0.001" class="form-oz">
+      </div>
+      <div class="form-group">
+        <label>Length (Y)</label>
+        <input type="number" id="resizeL" step="0.001" class="form-oz">
+      </div>
+      <div class="form-group">
+        <label>Height (Z)</label>
+        <input type="number" id="resizeH" step="0.001" class="form-oz">
+      </div>
+      <div style="margin:10px 0">
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#4a5565;cursor:pointer">
+          <input type="checkbox" id="resizeLinked" checked> Link dimensions
+        </label>
+      </div>
+      <div class="btn-row" style="justify-content:flex-end">
+        <button id="resizeCancel" class="btn-small" style="flex:none;padding:8px 18px">Cancel</button>
+        <button id="resizeApply" class="btn-primary" style="flex:none;padding:8px 18px;margin-bottom:0">Apply</button>
+      </div>
+    </div>
   </div>
 </div>
 <script type="module" src="demo.js"></script>

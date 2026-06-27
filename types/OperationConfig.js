@@ -94,9 +94,10 @@ export class OperationConfig {
     bitmapRaster: {
       scanAngle: { type: 'number', default: 0, label: 'Scan angle', unit: 'deg' },
       scanSpacing: { type: 'number', default: 0.2, label: 'Scan spacing', unit: 'mm' },
-      dpi: { type: 'number', default: 254, label: 'DPI' }
+      imageWidthMm: { type: 'number', default: 50, label: 'Image width', unit: 'mm' }
     },
     halftone: {
+      imageWidthMm: { type: 'number', default: 50, label: 'Image width', unit: 'mm' },
       dotSize: { type: 'number', default: 0.5, label: 'Min dot size',
         unit: 'mm' },
       dotSpacing: { type: 'number', default: 1, label: 'Dot spacing',
@@ -108,26 +109,21 @@ export class OperationConfig {
       invert: { type: 'boolean', default: false, label: 'Invert' }
     },
     wavy: {
-      amplitude: { type: 'number', default: 0.5, label: 'Amplitude',
-        unit: 'mm' },
-      wavelength: { type: 'number', default: 3, label: 'Wavelength',
-        unit: 'mm' },
-      angle: { type: 'number', default: 0, label: 'Wave angle',
-        unit: 'deg' },
-      spacing: { type: 'number', default: 0.3, label: 'Line spacing',
-        unit: 'mm' },
-      type: { type: 'select', options: ['sine', 'triangle', 'sawtooth'],
-        default: 'sine', label: 'Wave type' }
-    },
-    heightmap: {
+      imageWidthMm: { type: 'number', default: 50, label: 'Image width', unit: 'mm' },
       maxDepth: { type: 'number', default: 3, label: 'Max depth',
         unit: 'mm' },
-      toolDiameter: { type: 'number', default: 1, label: 'Tool dia',
+      direction: { type: 'select', options: ['top_to_bottom', 'bottom_to_top'],
+        default: 'top_to_bottom', label: 'Direction' },
+      invert: { type: 'boolean', default: false, label: 'Invert' }
+    },
+    heightmap: {
+      imageWidthMm: { type: 'number', default: 50, label: 'Image width', unit: 'mm' },
+      maxDepth: { type: 'number', default: 3, label: 'Max depth',
         unit: 'mm' },
-      stepover: { type: 'number', default: 0.3, label: 'Stepover' },
-      strategy: { type: 'select', options: ['raster', 'spiral'],
-        default: 'raster', label: 'Strategy' },
-      zScale: { type: 'number', default: 1, label: 'Z scale' }
+      stepOverPx: { type: 'number', default: 1, label: 'Stepover (px)' },
+      direction: { type: 'select', options: ['top_to_bottom', 'bottom_to_top'],
+        default: 'top_to_bottom', label: 'Direction' },
+      invert: { type: 'boolean', default: false, label: 'Invert' }
     },
     model3d: {
       toolDiameter: { type: 'number', default: 3.175, label: 'Tool dia',
@@ -149,7 +145,9 @@ export class OperationConfig {
       stockToLeave: { type: 'number', default: 0, label: 'Stock to leave',
         unit: 'mm' },
       angle: { type: 'number', default: 0, label: 'Raster angle',
-        unit: 'deg' }
+        unit: 'deg' },
+      margin: { type: 'number', default: 0, label: 'Margin',
+        unit: 'mm' }
     },
     meshFinishing: {
       toolDiameter: { type: 'number', default: 3.175, label: 'Tool dia',
@@ -157,7 +155,11 @@ export class OperationConfig {
       stepover: { type: 'number', default: 1, min: 0.05, label: 'Stepover',
         unit: 'mm' },
       direction: { type: 'select', options: ['x', 'y'],
-        default: 'x', label: 'Direction' }
+        default: 'x', label: 'Direction' },
+      stockToLeave: { type: 'number', default: 0, label: 'Stock to leave',
+        unit: 'mm' },
+      margin: { type: 'number', default: 0, label: 'Margin',
+        unit: 'mm' }
     },
     stepdown: {
       mode: { type: 'select', options: ['cut', 'inside', 'outside', 'pocket'],

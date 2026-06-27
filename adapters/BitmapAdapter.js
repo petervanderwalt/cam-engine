@@ -121,9 +121,9 @@ export class BitmapAdapter {
     const {
       scanAngle = 0,
       scanSpacing = 1,
-      dpi = 254
+      imageWidthMm = 50
     } = options;
-    const mmPerPixel = 25.4 / dpi;
+    const mmPerPixel = imageWidthMm / imageData.width;
     const w = imageData.width;
     const h = imageData.height;
     const paths = [];
@@ -149,12 +149,12 @@ export class BitmapAdapter {
             startX = x;
             startY = y;
           } else if (gray >= 128 && collecting) {
-            pts.push({ x: ((startX + x) / 2) * mmPerPixel, y: y * mmPerPixel, z: 0 });
+            pts.push({ x: ((startX + x) / 2) * mmPerPixel, y: (h - 1 - y) * mmPerPixel, z: 0 });
             collecting = false;
           }
         }
         if (collecting) {
-          pts.push({ x: ((startX + w) / 2) * mmPerPixel, y: y * mmPerPixel, z: 0 });
+          pts.push({ x: ((startX + w) / 2) * mmPerPixel, y: (h - 1 - y) * mmPerPixel, z: 0 });
         }
       } else {
         for (let t = -w; t < w + h; t++) {
@@ -164,7 +164,7 @@ export class BitmapAdapter {
           const iy = Math.round(py);
           if (ix < 0 || ix >= w || iy < 0 || iy >= h) {
             if (collecting) {
-              pts.push({ x: (startX + ix) / 2 * mmPerPixel, y: (startY + iy) / 2 * mmPerPixel, z: 0 });
+              pts.push({ x: (startX + ix) / 2 * mmPerPixel, y: (h - 1 - (startY + iy) / 2) * mmPerPixel, z: 0 });
               collecting = false;
             }
             continue;
@@ -176,7 +176,7 @@ export class BitmapAdapter {
             startX = ix;
             startY = iy;
           } else if (gray >= 128 && collecting) {
-            pts.push({ x: (startX + ix) / 2 * mmPerPixel, y: (startY + iy) / 2 * mmPerPixel, z: 0 });
+            pts.push({ x: (startX + ix) / 2 * mmPerPixel, y: (h - 1 - (startY + iy) / 2) * mmPerPixel, z: 0 });
             collecting = false;
           }
         }

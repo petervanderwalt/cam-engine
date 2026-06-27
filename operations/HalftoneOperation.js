@@ -4,7 +4,7 @@ import { Path } from '../types/Path.js';
 export class HalftoneOperation {
   generate(imageData, config = {}) {
     const toolpath = new Toolpath('halftone', { ...config });
-    const cellSize = config.cellSize || 0.1;
+    const cellSize = (config.imageWidthMm || 50) / imageData.width;
     const startZ = config.startZ || 0;
     const maxDepth = config.maxDepth || -1;
     const offsetX = config.offsetX || 0;
@@ -22,7 +22,7 @@ export class HalftoneOperation {
         if (radius <= 0.001) continue;
         const z = startZ + (tone / 255) * (maxDepth - startZ);
         const cx = x * cellSize + offsetX;
-        const cy = y * cellSize + offsetY;
+        const cy = (imageData.height - 1 - y) * cellSize + offsetY;
         const points = [];
         for (let i = 0; i <= 16; i++) {
           const a = (i / 16) * Math.PI * 2;

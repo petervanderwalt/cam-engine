@@ -4,7 +4,7 @@ import { Path } from '../types/Path.js';
 export class HeightmapOperation {
   generate(imageData, config = {}) {
     const toolpath = new Toolpath('heightmap', { ...config });
-    const cellSize = config.cellSize || 0.1;
+    const cellSize = (config.imageWidthMm || 50) / imageData.width;
     const startZ = config.startZ || 0;
     const maxDepth = config.maxDepth || -1;
     const offsetX = config.offsetX || 0;
@@ -27,7 +27,7 @@ export class HeightmapOperation {
         const tone = invert ? 255 - luma : luma;
         points.push({
           x: x * cellSize + offsetX,
-          y: y * cellSize + offsetY,
+          y: (imageData.height - 1 - y) * cellSize + offsetY,
           z: startZ + (tone / 255) * (maxDepth - startZ)
         });
       }
